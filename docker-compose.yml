@@ -1,0 +1,57 @@
+# Docker Compose for Quiz Platform
+# Optimized for home server deployment with low resource usage
+
+services:
+  # Backend API service
+  quiz-api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: quiz-platform-api
+    ports:
+      - "8000:8000"
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - LLM_PROVIDER=${LLM_PROVIDER:-auto}
+      - LLM_MODEL=${LLM_MODEL:-}
+      - CACHE_TTL_SECONDS=${CACHE_TTL_SECONDS:-3600}
+      - CACHE_MAX_SIZE=${CACHE_MAX_SIZE:-100}
+      - RATE_LIMIT_PER_MINUTE=${RATE_LIMIT_PER_MINUTE:-10}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - CORS_ORIGINS=${CORS_ORIGINS:-*}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/api/quiz/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 200M
+        reservations:
+          memory: 80M
+    networks:
+      - quiz-network
+
+  # Frontend service (nginx serving built assets)
+  quiz-frontend:
+    image: nginx:alpine
+    container_name: quiz-platform-frontend
+    ports:
+      - "80:80"
+    volumes:
+      - ./frontend/dist:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      quiz-api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - quiz-network
+
+networks:
+  quiz-network:
+    driver: bridge

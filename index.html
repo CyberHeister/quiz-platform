@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Quiz Lab — Interactive MCQ Practice Platform</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = { darkMode: 'class' };
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+  html { scroll-behavior: smooth; }
+  body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .card { transition: transform .15s ease, box-shadow .15s ease; }
+  .q-option { transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease; }
+  input[type=radio], input[type=checkbox] { accent-color: #6366f1; }
+  .palette-btn.active { background:#6366f1; color:#fff; border-color:#6366f1; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: rgba(100,116,139,.4); border-radius: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+</style>
+</head>
+<body class="bg-slate-100 text-slate-800 dark:bg-slate-950 dark:text-slate-100 min-h-screen">
+
+<header class="sticky top-0 z-40 backdrop-blur bg-white/80 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-800">
+  <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+    <div class="flex items-center gap-2 min-w-0">
+      <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white font-black text-lg shrink-0">Q</div>
+      <div class="min-w-0">
+        <h1 class="font-bold text-base sm:text-lg leading-tight truncate">Quiz Lab</h1>
+        <p class="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 truncate">Interactive MCQ Practice Platform</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <button id="resetBtn" class="hidden text-xs sm:text-sm px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition">Reset Quiz</button>
+      <button id="themeBtn" class="text-xs sm:text-sm px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition" title="Toggle dark/light mode">🌙 Dark / ☀️ Light</button>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-5xl mx-auto px-4 py-6 space-y-6">
+
+  <section id="controlPanel" class="card bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-5">
+    <h2 class="font-semibold text-lg mb-1">1 · Load your quiz material</h2>
+    <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">Upload a PDF (questions), a text file (questions + options, with <code>ans-</code> / <code>Correct answer</code> lines or a plain <code>Q1: A</code> key), paste content, or load JSON.</p>
+
+    <div class="grid md:grid-cols-2 gap-4">
+
+      <div>
+        <label class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">PDF with MCQs (parsed in-browser via pdf.js)</label>
+        <div id="pdfDrop" class="mt-2 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-4 text-center cursor-pointer hover:border-indigo-400 transition">
+          <div class="text-3xl mb-1">📄</div>
+          <p class="text-sm" id="pdfDropText">Drop a PDF here or click to browse</p>
+          <p class="text-xs text-slate-400 mt-1">Text is extracted from every page, then parsed.</p>
+          <input type="file" id="pdfInput" accept="application/pdf,.pdf" class="hidden" />
+        </div>
+      </div>
+
+      <div>
+        <label class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Text file (questions + answers, or an answer key)</label>
+        <div class="mt-2 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-4 text-center cursor-pointer hover:border-indigo-400 transition" id="txtDrop">
+          <div class="text-3xl mb-1">📝</div>
+          <p class="text-sm" id="txtDropText">Drop a .txt / .json here or click to browse</p>
+          <p class="text-xs text-slate-400 mt-1">Supports <code>1] question…</code>, options <code>A. …</code>, answers <code>ans- A</code> / <code>Correct answer C</code> / <code>Q1: B, D</code>.</p>
+          <input type="file" id="txtInput" accept=".txt,.text,text/plain,.json,application/json" class="hidden" />
+        </div>
+      </div>
+
+      <div class="md:col-span-2">
+        <label for="pasteArea" class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">…or paste content directly</label>
+        <textarea id="pasteArea" rows="5" class="mt-2 w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-3 text-sm font-mono resize-y focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Paste questions + answer key text here, then click Load…"></textarea>
+      </div>
+    </div>
+
+    <div class="mt-4 flex flex-wrap items-center gap-2">
+      <button id="loadBtn" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium transition">Load Content</button>
+      <button id="sampleBtn" class="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-sm transition">Load Sample</button>
+      <button id="exportBtn" class="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-sm transition disabled:opacity-40 disabled:pointer-events-none" disabled>Export JSON</button>
+      <span id="parseStatus" class="text-sm text-slate-500 dark:text-slate-400"></span>
+    </div>
+  </section>
+
+  <section id="quizArea" class="hidden space-y-4">
+
+    <div id="progressBar" class="sticky top-[61px] z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm">
+      <div class="flex items-center justify-between text-sm gap-2 flex-wrap">
+        <span id="progressText" class="font-medium">Question 0 of 0</span>
+        <span id="scoreChip" class="px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 text-xs font-semibold"></span>
+      </div>
+      <div class="mt-2 h-2 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
+        <div id="progressFill" class="h-full bg-gradient-to-r from-indigo-500 to-violet-500 transition-all duration-300" style="width:0%"></div>
+      </div>
+    </div>
+
+    <div id="palette" class="card bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="text-sm font-semibold">Question Palette</h3>
+        <button id="submitAllBtn" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition">Submit Quiz</button>
+      </div>
+      <div id="paletteGrid" class="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto"></div>
+    </div>
+
+    <div id="questionsList" class="space-y-4"></div>
+
+    <div id="summaryCard" class="hidden card bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 text-center">
+      <div class="text-4xl mb-2">🏁</div>
+      <h2 class="text-2xl font-bold">Quiz Complete!</h2>
+      <div id="summaryBody" class="mt-4"></div>
+      <div class="mt-6 flex flex-wrap justify-center gap-3">
+        <button id="resetAfterBtn" class="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium transition">Reset Quiz</button>
+        <button id="reviewWrongBtn" class="px-5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium transition">Review Incorrect</button>
+      </div>
+    </div>
+
+  </section>
+
+  <footer class="text-center text-xs text-slate-400 pb-8">
+    Quiz Lab · Questions parsed locally in your browser · AI buttons open ChatGPT / Gemini with a pre-built explanation prompt.
+  </footer>
+</main>
+
+<script>
+"use strict";
+
+const state = {
+  questions: [],
+  answers: {},       // { idx: { letters: [] } }
+  revealed: {},      // { idx: true } -> answer block shown under the question
+  submitted: false,
+  correctCount: 0
+};
+
+const SAMPLE = `1] A company collects data for temperature, humidity, and atmospheric pressure in cities across multiple continents. Each site generates about 500 GB daily and has a high-speed internet connection. The company wants to aggregate the data from all global sites as quickly as possible into a single Amazon S3 bucket with minimal operational complexity.
+Which solution meets these requirements?
+A. Turn on S3 Transfer Acceleration on the destination S3 bucket. Use multipart uploads to directly upload site data to the destination S3 bucket.
+B. Provision multiple AWS Direct Connect connections from each site to the destination bucket.
+C. Use AWS Snowball Edge devices from each site to transfer the data to the destination bucket.
+D. Configure an S3 lifecycle policy to replicate the data to the destination bucket on a schedule.
+Correct answer A
+
+2] An application runs on an Amazon EC2 instance in a VPC. The application processes logs that are stored in an Amazon S3 bucket. The EC2 instance needs to access the S3 bucket without connectivity to the internet.
+Which solution will provide private network connectivity to Amazon S3?
+A. Create a gateway VPC endpoint to the S3 bucket.
+B. Use a NAT gateway in a public subnet.
+C. Configure an S3 File Gateway on premises.
+D. Attach an Elastic IP address to the EC2 instance.
+Correct answer A
+
+3] A company uses NFS to store large video files on-premises. Each file ranges from 1 MB to 500 GB, and the total storage is 70 TB. The company must migrate the video files to Amazon S3 as soon as possible while using the least possible network bandwidth.
+Which solution will meet these requirements?
+A. Upload the files over an AWS Site-to-Site VPN with multipart uploads.
+B. Create an AWS Snowball Edge job. Transfer data to the device and return it so AWS can import it into Amazon S3.
+C. Use AWS DataSync over the public internet.
+D. Set up AWS Direct Connect and upload all files.
+Correct answer B
+
+4] A company runs an ecommerce application on Amazon EC2 instances behind an Application Load Balancer. The application handles more read requests than write transactions. The database performance degrades quickly as application load increases. The company wants a solution that will automatically scale the database to meet unpredictable read workloads while maintaining high availability.
+Which solution will meet these requirements?
+A. Use Amazon RDS with Multi-AZ and increase the instance size.
+B. Use Amazon Aurora with Multi-AZ deployment and Aurora Auto Scaling with Aurora Replicas.
+C. Use Amazon DynamoDB with on-demand capacity.
+D. Use Amazon ElastiCache for Redis as the primary data store.
+Correct answer B
+`;
+
+/* ---------------- Parsers ---------------- */
+
+function normalize(s) {
+  return (s || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function extractLetters(val) {
+  let s = String(val || '').replace(/^\s*(correct\s*answer[s]?|answers?|ans)\s*[:\.\-\s]*/i, '').trim();
+  const tokens = [];
+  const re = /(?:^|[(,\s+\/&]|\band\b)\s*([A-H])\s*\)?\s*(?=[:\s+\/&,).]|$)/gi;
+  let m;
+  while ((m = re.exec(s)) !== null) tokens.push(m[1].toUpperCase());
+  return [...new Set(tokens)];
+}
+
+function fuzzyMatchAnswer(cur, val) {
+  const nv = normalize(val);
+  if (!nv) return false;
+  const hits = [];
+  for (const o of cur.options) {
+    const no = normalize(o.text);
+    if (!no) continue;
+    if (nv.includes(no) || no.includes(nv) || nv.startsWith(no.slice(0, 24)) || no.startsWith(nv.slice(0, 24))) hits.push(o.letter);
+  }
+  if (hits.length) { cur.correct = [...new Set(hits)]; return true; }
+  return false;
+}
+
+function appendText(existing, line) {
+  return existing ? existing + '\n' + line : line;
+}
+
+function addLoneAnswer(cur, letter, text) {
+  cur.correct = [...new Set([...cur.correct, letter])];
+  cur.displayText = appendText(cur.displayText, letter + ') ' + text);
+}
+
+function finalizeQuestion(cur) {
+  if (!cur.options.length && !cur.correct.length && !cur.answerText && !cur.displayText && !(cur.text && cur.fromPdf)) return false;
+  if (cur.correct.length === 0 && cur.answerText && cur.options.length) fuzzyMatchAnswer(cur, cur.answerText);
+  cur.multi = cur.correct.length > 1;
+  return true;
+}
+
+function parseQuestions(text) {
+  const lines = String(text || '').split(/\r?\n/);
+  const questions = [];
+  let cur = null;
+  let answerFound = false;
+  let pending = [];
+
+  const qNumRe = /^\s*(?:imp\s*[>:_\-\s]*)?(\d+)\s*[\)\]\.\-\:]\s*(.+)$/i;
+  const qPdfRe = /^\s*(?:topic\s*\d+\s*[\-–—:.\s]*)?question\s*#?\s*(\d+)\s*(?:topic\s*\d+\s*)?(.*)$/i;
+  const optRe = /^\s*([A-H])\s*[\.\)\]\-]\s*(.+)$/;
+  const optLoose = /^\s*([A-H])\s{1,3}(\S.*)$/;
+  const ansRe = /^\s*(?:answers?|ans)\s*[:\.\-\s]*\s*(.*)$/i;
+  const cAnsRe = /^\s*correct\s*answer[s]?\s*(.*)$/i;
+  const keyRe = /^\s*Q?\s*(\d+)\s*[:\.\-\s]\s*([A-H](?:\s*,\s*[A-H])*)\s*$/i;
+  const whichRe = /which solution|what should|how should|which action|which combination|which storage|which type|which aws|which of the following|which design|which set of/i;
+
+  const promotePending = () => {
+    if (!cur || !pending.length) return;
+    const seq = 'ABCDEFGH';
+    const isBlock = pending.length >= 3 && pending.every((o, i) => o.letter === seq[i]);
+    if (isBlock) {
+      pending.forEach(o => cur.options.push(o));
+      pending = [];
+    }
+  };
+
+  const finalizePending = () => {
+    if (!cur || !pending.length) return;
+    const seq = 'ABCDEFGH';
+    const isBlock = pending.length >= 3 && pending.every((o, i) => o.letter === seq[i]);
+    if (isBlock) {
+      pending.forEach(o => cur.options.push(o));
+    } else {
+      pending.forEach(o => addLoneAnswer(cur, o.letter, o.text));
+    }
+    pending = [];
+  };
+
+  const flush = () => {
+    finalizePending();
+    if (cur && finalizeQuestion(cur)) questions.push(cur);
+    cur = null; answerFound = false; pending = [];
+  };
+
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) continue;
+    const specialText = /^[ \t]+/.test(raw) || /^[ \t]*>/.test(raw);
+
+    if (/^[\-=_]{4,}$/.test(line)) { answerFound = false; continue; }
+    if (/^(topic\s*\d+|imp(?!\s*[>:_\-\s]*\d)|general line|keywords|note|explanation)\b/i.test(line) && line.length < 40) continue;
+
+    const mKey = line.match(keyRe);
+    if (mKey) {
+      const letters = mKey[2].replace(/\s+/g, '').split(',');
+      const keyId = parseInt(mKey[1], 10);
+      let q = questions.find(x => x.id === keyId);
+      if (!q && cur && cur.id === keyId) q = cur;
+      if (q) { q.correct = letters; q.answerText = ''; answerFound = true; }
+      continue;
+    }
+
+    const mPdf = line.match(qPdfRe);
+    if (mPdf && parseInt(mPdf[1], 10) >= 1) {
+      flush();
+      cur = { id: parseInt(mPdf[1], 10), text: mPdf[2].trim(), options: [], correct: [], answerText: '', displayText: '', fromPdf: true };
+      continue;
+    }
+
+    const mQ = line.match(qNumRe);
+    if (mQ && parseInt(mQ[1], 10) >= 1) {
+      flush();
+      cur = { id: parseInt(mQ[1], 10), text: mQ[2].trim(), options: [], correct: [], answerText: '', displayText: '', fromPdf: false };
+      continue;
+    }
+    if (!cur) continue;
+
+    const mAns = line.match(ansRe);
+    if (mAns) {
+      finalizePending();
+      const val = mAns[1].trim();
+      if (val) {
+        const letters = extractLetters(val);
+        if (letters.length) cur.correct = letters;
+        else cur.answerText = val;
+        answerFound = true;
+      }
+      continue;
+    }
+
+    const mCA = line.match(cAnsRe);
+    if (mCA) {
+      finalizePending();
+      const val = mCA[1].trim();
+      if (val) {
+        const letters = extractLetters(val);
+        if (letters.length) cur.correct = letters;
+        else cur.answerText = val;
+        answerFound = true;
+      }
+      continue;
+    }
+
+    if (!answerFound) {
+      const mO = line.match(optRe);
+      if (mO) {
+        const letter = mO[1].toUpperCase();
+        const text = mO[2].trim();
+        if (cur.options.length === 0) {
+          pending.push({ letter, text });
+          promotePending();
+        } else if (cur.options.some(o => o.letter === letter)) {
+          cur.answerText = appendText(cur.answerText, letter + '. ' + text);
+        } else {
+          cur.options.push({ letter, text });
+        }
+        continue;
+      }
+      const mL = line.match(optLoose);
+      if (mL && cur.options.length > 0) {
+        const letter = mL[1].toUpperCase();
+        const text = mL[2].trim();
+        if (cur.options.some(o => o.letter === letter)) {
+          cur.answerText = appendText(cur.answerText, letter + '. ' + text);
+        } else {
+          cur.options.push({ letter, text });
+        }
+        continue;
+      }
+
+      if ((pending.length || cur.options.length) && cur.fromPdf) {
+        if (pending.length) pending[pending.length - 1].text += ' ' + line;
+        else cur.options[cur.options.length - 1].text += ' ' + line;
+        continue;
+      }
+    }
+
+    finalizePending();
+
+    if (specialText) {
+      const t = line.replace(/^>\s?/, '');
+      if (!answerFound && cur.options.length === 0) {
+        const lone = t.match(/^([A-H])\s{1,3}(\S.*)$/);
+        if (lone) addLoneAnswer(cur, lone[1].toUpperCase(), lone[2]);
+        else cur.displayText = appendText(cur.displayText, t);
+      } else {
+        cur.answerText = appendText(cur.answerText, t);
+      }
+      continue;
+    }
+
+    if (!answerFound) {
+      if (cur.fromPdf) { if (!/^[A-H][\.\)\]\-]\s*$/.test(line)) cur.text = appendText(cur.text, line); continue; }
+      if (whichRe.test(line)) {
+        cur.text += ' ' + line;
+      }
+    }
+  }
+  flush();
+  return questions;
+}
+
+function parseAnswerKey(text) {
+  const lines = String(text || '').split(/\r?\n/);
+  const map = {};
+  const keyRe = /^\s*(?:Q)?\s*(\d+)\s*[:\.\-\s]\s*([A-H](?:\s*,\s*[A-H])*)\s*$/i;
+  for (const raw of lines) {
+    const m = raw.trim().match(keyRe);
+    if (m) map[parseInt(m[1], 10)] = m[2].replace(/\s+/g, '').split(',');
+  }
+  return map;
+}
+
+function tryJson(content) {
+  const t = content.trim();
+  if (!t.startsWith('[') && !t.startsWith('{')) return null;
+  try {
+    const data = JSON.parse(t);
+    const arr = Array.isArray(data) ? data : (data.questions || data.quiz || null);
+    if (!Array.isArray(arr)) return null;
+    return arr.map((q, i) => {
+      const opts = Array.isArray(q.options) ? q.options.map((o, j) => {
+        if (typeof o === 'string') return { letter: String.fromCharCode(65 + j), text: o };
+        return { letter: o.letter || String.fromCharCode(65 + j), text: o.text || String(o) };
+      }) : [];
+      const correct = q.correct || q.answer || q.answerKey || [];
+      const corr = Array.isArray(correct) ? correct.map(String) : String(correct).split(',').map(s => s.trim()).filter(Boolean);
+      return {
+        id: q.id || q.number || i + 1,
+        text: q.question || q.text || q.prompt || '',
+        options: opts,
+        correct: corr.map(c => (c.length === 1 ? c.toUpperCase() : c)),
+        answerText: q.explanation || '',
+        displayText: q.displayText || ''
+      };
+    }).filter(q => q.text && (q.options.length || q.correct.length || q.answerText || q.displayText));
+  } catch (e) { return null; }
+}
+
+function mergeQuestions(existing, incoming) {
+  const out = existing.map(q => ({ id: q.id, text: q.text, options: q.options.map(o => ({ ...o })), correct: q.correct.slice(), answerText: q.answerText, displayText: q.displayText || '' }));
+  const map = new Map(out.map(q => [q.id, q]));
+  incoming.forEach(q => {
+    let t = map.get(q.id);
+    if (!t) {
+      t = { id: q.id, text: q.text, options: [], correct: [], answerText: '', displayText: '' };
+      map.set(q.id, t);
+      out.push(t);
+    }
+    if (!t.options.length && q.options.length) t.options = q.options.map(o => ({ ...o }));
+    if (!t.correct.length && q.correct.length) t.correct = q.correct.slice();
+    if (!t.answerText && q.answerText) t.answerText = q.answerText;
+    if (!t.displayText && q.displayText) t.displayText = q.displayText;
+  });
+  out.forEach(q => { q.multi = q.correct.length > 1; });
+  return out;
+}
+
+function loadContent(content) {
+  const json = tryJson(content);
+  let parsed = json || parseQuestions(content);
+  let questions = parsed;
+  if (!json && state.questions.length) {
+    const overlap = parsed.filter(q => state.questions.some(x => x.id === q.id)).length;
+    if (overlap > 0) questions = mergeQuestions(state.questions, parsed);
+  }
+  let answered = 0, options = 0, multi = 0, noAns = 0;
+  questions.forEach(q => {
+    if (q.correct && q.correct.length) answered++;
+    else if (q.answerText || q.displayText) noAns++;
+    options += q.options.length;
+    if (q.correct && q.correct.length > 1) multi++;
+  });
+  state.questions = questions;
+  state.answers = {};
+  state.revealed = {};
+  state.submitted = false;
+  state.correctCount = 0;
+  renderQuiz();
+  const status = document.getElementById('parseStatus');
+  const msg = `${questions.length} questions · ${options} options · ${answered} with letter answers` + (noAns ? ` · ${noAns} with text-only answers` : '');
+  status.textContent = json ? 'JSON → ' + msg : msg;
+  status.classList.add('text-emerald-600', 'dark:text-emerald-400');
+  document.getElementById('exportBtn').disabled = questions.length === 0;
+  document.getElementById('quizArea').classList.remove('hidden');
+  document.getElementById('resetBtn').classList.remove('hidden');
+  document.getElementById('summaryCard').classList.add('hidden');
+}
+
+/* ---------------- AI helpers ---------------- */
+
+function buildPrompt(q, selectedLetters) {
+  const opts = q.options.map(o => `${o.letter}) ${o.text}`).join('\n');
+  const correct = q.correct.length ? q.correct.join(', ') : (q.answerText || 'Not provided');
+  const sel = selectedLetters.length ? selectedLetters.join(', ') : 'Not answered';
+  return [
+    'Act as an expert exam coach and explain this multiple choice question in detail.',
+    'QUESTION:',
+    q.text,
+    'OPTIONS:',
+    opts || '(No options available)',
+    'USER SELECTED ANSWER:',
+    sel,
+    'CORRECT ANSWER:',
+    correct,
+    // 'INSTRUCTION: Please explain in detail why the correct answer(s) are right, why the selected option was correct or incorrect, and why the other options are wrong. Keep the explanation clear, precise and educational. Answer within 250 words and only give options comparisons in a tabulated format. Use bullet points if necessary. Avoid generic statements and focus on the specific question and options provided.'
+    'INSTRUCTION: Please explain in tabulated format why the correct answer(s) are right, why the selected option was correct or incorrect, and why the other options are wrong. Keep the explanation clear, precise and educational. Answer within 250 words and only give options comparisons in a tabulated format. Use bullet points if necessary. Avoid generic statements and focus on the specific question and options provided.'
+  ].join('\n\n');
+}
+
+function openAI(engine, idx) {
+  const q = state.questions[idx];
+  if (!q) return;
+  const sel = (state.answers[idx] || { letters: [] }).letters;
+  const prompt = buildPrompt(q, sel);
+  const url = engine === 'chatgpt'
+    ? 'https://chatgpt.com/?q=' + encodeURIComponent(prompt)
+    : 'https://gemini.google.com/app?q=' + encodeURIComponent(prompt);
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
+
+/* ---------------- Grading ---------------- */
+
+function grade(q, selLetters) {
+  if (!q.correct || !q.correct.length || !q.options.length) return { graded: false };
+  const corSet = new Set(q.correct);
+  const selSet = new Set(selLetters || []);
+  const missing = q.correct.filter(l => !selSet.has(l));
+  const extra = (selLetters || []).filter(l => !corSet.has(l));
+  return { graded: true, isCorrect: missing.length === 0 && extra.length === 0, missing, extra };
+}
+
+/* ---------------- Rendering ---------------- */
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function renderQuiz() {
+  const list = document.getElementById('questionsList');
+  const paletteGrid = document.getElementById('paletteGrid');
+  list.innerHTML = '';
+  paletteGrid.innerHTML = '';
+
+  state.questions.forEach((q, idx) => {
+    const card = document.createElement('div');
+    card.className = 'card bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5';
+    card.id = 'q-' + idx;
+    card.innerHTML = buildQuestionHTML(q, idx);
+    list.appendChild(card);
+
+    const p = document.createElement('button');
+    p.className = 'palette-btn w-8 h-8 text-xs rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition';
+    p.textContent = q.id;
+    p.addEventListener('click', () => card.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    paletteGrid.appendChild(p);
+  });
+
+  bindQuestionEvents();
+  updateProgress();
+}
+
+function buildQuestionHTML(q, idx) {
+  const sel = (state.answers[idx] || { letters: [] }).letters;
+  const isMulti = (q.correct && q.correct.length > 1) || q.options.length > 1 && q.multi;
+  const displayOnly = !q.options.length;
+  const type = isMulti ? 'checkbox' : 'radio';
+  const hasSel = sel.length > 0;
+  const revealed = !!state.revealed[idx];
+  const g = state.submitted ? grade(q, sel) : { graded: false };
+  const answerBody = [q.displayText, q.answerText].filter(Boolean).join('\n\n');
+  const hasAnswer = q.correct.length > 0 || !!answerBody;
+
+  const aiBtns = `
+    <div class="mt-3 flex flex-wrap items-center gap-2">
+      <span class="text-xs text-slate-500 dark:text-slate-400 font-medium mr-1">Explain:</span>
+      <button data-ai="chatgpt" data-idx="${idx}" class="aiBtn px-3 py-1.5 rounded-lg bg-slate-900 dark:bg-slate-700 hover:opacity-90 text-white text-xs font-medium transition">🤖 Explain with ChatGPT</button>
+      <button data-ai="gemini" data-idx="${idx}" class="aiBtn px-3 py-1.5 rounded-lg bg-gradient-to-r from-sky-500 to-indigo-500 hover:opacity-90 text-white text-xs font-medium transition">✦ Explain with Gemini</button>
+    </div>`;
+
+  const answerBox = `
+    <div class="answer-box rounded-xl border border-emerald-200 dark:border-emerald-800/70 bg-emerald-50/50 dark:bg-emerald-950/30 p-4 text-sm">
+      <p class="font-semibold mb-1.5">Answer</p>
+      ${q.correct.length ? `<p class="mb-1.5">Correct answer: <span class="font-semibold text-emerald-600 dark:text-emerald-400">${esc(q.correct.join(', '))}</span></p>` : ''}
+      ${answerBody ? `<p class="text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-line">${esc(answerBody)}</p>` : ''}
+      ${aiBtns}
+    </div>`;
+
+  let statusBadge = '';
+  if (state.submitted) {
+    if (!g.graded) statusBadge = '<span class="px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-semibold">Text answer</span>';
+    else if (g.isCorrect) statusBadge = '<span class="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 text-xs font-semibold">✓ Correct</span>';
+    else statusBadge = '<span class="px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-900 text-rose-700 dark:text-rose-300 text-xs font-semibold">✗ Incorrect</span>';
+  } else if (hasSel) {
+    statusBadge = '<span class="px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 text-xs font-semibold">Answered</span>';
+  }
+
+  const typeBadge = displayOnly
+    ? '<span class="px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-semibold">Answer only</span>'
+    : (isMulti
+      ? '<span class="px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 text-xs font-semibold">Multiple answers</span>'
+      : '<span class="px-2 py-0.5 rounded-full bg-sky-100 dark:bg-sky-900 text-sky-700 dark:text-sky-300 text-xs font-semibold">Single answer</span>');
+
+  const head = `
+    <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+      <h3 class="font-semibold text-base">Question ${q.id}</h3>
+      <div class="flex items-center gap-2">${typeBadge}${statusBadge}</div>
+    </div>
+    <p class="text-sm sm:text-[15px] leading-relaxed mb-4">${esc(q.text)}</p>`;
+
+  if (displayOnly) {
+    if (hasAnswer) return head + answerBox;
+    return head + '<p class="mt-3 text-xs text-amber-600 dark:text-amber-400">No answer key detected for this question.</p>';
+  }
+
+  const optsHTML = q.options.map((o, oi) => {
+    const checked = sel.includes(o.letter);
+    let cls = 'q-option flex items-start gap-3 border rounded-xl px-4 py-3 cursor-pointer ';
+    let extra = '';
+
+    if (state.submitted && g.graded) {
+      const isCor = q.correct.includes(o.letter);
+      if (isCor && checked) cls += 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/30 ring-1 ring-emerald-500';
+      else if (isCor && !checked) {
+        if (isMulti) { cls += 'border-amber-500 bg-amber-50 dark:bg-amber-900/30 ring-1 ring-amber-500'; extra = '<span class="ml-1 text-[11px] font-semibold text-amber-600 dark:text-amber-400">Missing</span>'; }
+        else cls += 'border-emerald-400 bg-emerald-50/60 dark:bg-emerald-900/20';
+      }
+      else if (checked && !isCor) cls += 'border-rose-500 bg-rose-50 dark:bg-rose-900/30 ring-1 ring-rose-500';
+      else cls += 'border-slate-200 dark:border-slate-700 opacity-70';
+    } else {
+      cls += checked ? 'border-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 ring-1 ring-indigo-400' : 'border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700';
+    }
+
+    const input = state.submitted
+      ? `<input type="${type}" disabled ${checked ? 'checked' : ''} class="mt-1 w-4 h-4 ${type === 'radio' ? 'rounded-full' : 'rounded'} shrink-0">`
+      : `<input type="${type}" name="opt-${idx}" value="${o.letter}" ${checked ? 'checked' : ''} class="mt-1 w-4 h-4 ${type === 'radio' ? 'rounded-full' : 'rounded'} shrink-0" data-idx="${idx}" data-letter="${o.letter}">`;
+
+    return `<label class="${cls}">${input}<span class="text-sm">${extra}<span class="font-semibold">${esc(o.letter)})</span> ${esc(o.text)}</span></label>`;
+  }).join('');
+
+  const feedback = state.submitted ? buildFeedbackHTML(q, idx, g, sel) : '';
+
+  const checkBtn = state.submitted ? '' :
+    `<button data-check="${idx}" class="checkBtn px-4 py-2 rounded-xl border text-sm font-medium transition ${revealed ? 'border-slate-400 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800' : 'border-indigo-500 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30'}">${revealed ? 'Hide Answer' : 'Check Answer'}</button>`;
+
+  const answerBlock = revealed ? (hasAnswer ? answerBox : '<p class="mt-3 text-xs text-amber-600 dark:text-amber-400">No answer key detected for this question.</p>') : '';
+
+  return `
+    ${head}
+    <div class="space-y-2" data-qid="${idx}">${optsHTML}</div>
+    ${answerBlock}
+    <div class="mt-4 flex flex-wrap items-center gap-2">${checkBtn}</div>
+    ${feedback}`;
+}
+
+function buildFeedbackHTML(q, idx, g, sel) {
+  const correctText = q.correct.length ? q.correct.join(', ') : (q.answerText ? 'No letter match — see answer text below' : 'No answer key');
+  let box = '';
+  if (!g.graded) {
+    box = `
+      <div class="mt-4 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 p-4 text-sm">
+        <p class="font-semibold mb-1">Answer status</p>
+        <p>Correct answer: <span class="font-semibold text-indigo-600 dark:text-indigo-400">${esc(correctText)}</span></p>
+        ${q.answerText ? `<p class="mt-2 text-slate-600 dark:text-slate-300">${esc(q.answerText)}</p>` : ''}
+        ${q.correct.length ? `<p class="mt-1 text-xs text-slate-500">This question is graded automatically.</p>` : ''}
+      </div>`;
+  } else if (g.isCorrect) {
+    box = `
+      <div class="mt-4 rounded-xl border border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 p-4 text-sm">
+        <p class="font-semibold text-emerald-700 dark:text-emerald-400">✓ Correct</p>
+        <p>Selected: <span class="font-semibold">${sel.join(', ') || 'none'}</span> · Correct: <span class="font-semibold">${q.correct.join(', ')}</span></p>
+      </div>`;
+  } else {
+    const missing = g.missing.length ? `<span class="font-semibold text-amber-600 dark:text-amber-400">Missing: ${g.missing.join(', ')}</span>` : '';
+    const extra = g.extra.length ? `<span class="font-semibold text-rose-600 dark:text-rose-400">Incorrect: ${g.extra.join(', ')}</span>` : '';
+    box = `
+      <div class="mt-4 rounded-xl border border-rose-500 bg-rose-50 dark:bg-rose-900/20 p-4 text-sm">
+        <p class="font-semibold text-rose-700 dark:text-rose-400">✗ Incorrect</p>
+        <p>Selected: <span class="font-semibold">${sel.join(', ') || 'none'}</span></p>
+        <p>Correct answer: <span class="font-semibold text-emerald-600 dark:text-emerald-400">${q.correct.join(', ')}</span></p>
+        <p class="mt-1">${missing} ${extra}</p>
+      </div>`;
+  }
+
+  return `${box}
+    <div class="mt-3 flex flex-wrap items-center gap-2">
+      <span class="text-xs text-slate-500 dark:text-slate-400 font-medium mr-1">Explain:</span>
+      <button data-ai="chatgpt" data-idx="${idx}" class="aiBtn px-3 py-1.5 rounded-lg bg-slate-900 dark:bg-slate-700 hover:opacity-90 text-white text-xs font-medium transition">🤖 Explain with ChatGPT</button>
+      <button data-ai="gemini" data-idx="${idx}" class="aiBtn px-3 py-1.5 rounded-lg bg-gradient-to-r from-sky-500 to-indigo-500 hover:opacity-90 text-white text-xs font-medium transition">✦ Explain with Gemini</button>
+    </div>`;
+}
+
+function bindCardEvents(card, idx) {
+  card.querySelectorAll('input[data-idx]').forEach(inp => {
+    inp.addEventListener('change', e => {
+      const q = state.questions[idx];
+      const type = inp.type;
+      const letters = (state.answers[idx] || { letters: [] }).letters;
+      if (type === 'radio') {
+        state.answers[idx] = { letters: [inp.value] };
+        card.querySelectorAll('input[data-idx]').forEach(o => o.checked = o.value === inp.value);
+      } else {
+        const set = new Set(letters);
+        inp.checked ? set.add(inp.value) : set.delete(inp.value);
+        state.answers[idx] = { letters: [...set] };
+      }
+      updateProgress();
+    });
+  });
+
+  card.querySelectorAll('.checkBtn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = parseInt(btn.dataset.check, 10);
+      state.revealed[i] = !state.revealed[i];
+      renderCard(i);
+    });
+  });
+
+  card.querySelectorAll('.aiBtn').forEach(btn => {
+    btn.addEventListener('click', () => openAI(btn.dataset.ai, parseInt(btn.dataset.idx, 10)));
+  });
+}
+
+function bindQuestionEvents() {
+  document.querySelectorAll('#questionsList .card').forEach((card, idx) => bindCardEvents(card, idx));
+}
+
+function renderCard(idx) {
+  const card = document.getElementById('q-' + idx);
+  if (!card) return;
+  card.innerHTML = buildQuestionHTML(state.questions[idx], idx);
+  bindCardEvents(card, idx);
+}
+
+function flashNotice(msg) {
+  const el = document.getElementById('parseStatus');
+  el.textContent = '⚠ ' + msg;
+  el.classList.add('text-amber-600', 'dark:text-amber-400');
+  setTimeout(() => { el.textContent = ''; el.classList.remove('text-amber-600', 'dark:text-amber-400'); }, 2500);
+}
+
+function updateProgress() {
+  const total = state.questions.length;
+  const answered = state.questions.reduce((n, q, i) => n + (((state.answers[i] || { letters: [] }).letters.length) ? 1 : 0), 0);
+  document.getElementById('progressText').textContent = total ? `Answered ${answered} of ${total}` : 'No questions loaded';
+  document.getElementById('progressFill').style.width = total ? (answered / total * 100) + '%' : '0%';
+
+  if (state.submitted && total) {
+    state.correctCount = state.questions.reduce((n, q, i) => {
+      const g = grade(q, (state.answers[i] || { letters: [] }).letters);
+      return n + (g.graded && g.isCorrect ? 1 : 0);
+    }, 0);
+    document.getElementById('scoreChip').textContent = `Score: ${state.correctCount} / ${total}`;
+    const pct = Math.round(state.correctCount / total * 100);
+    document.getElementById('scoreChip').className = `px-2 py-0.5 rounded-full text-xs font-semibold ${pct >= 70 ? 'bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300' : pct >= 40 ? 'bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300' : 'bg-rose-100 dark:bg-rose-900 text-rose-700 dark:text-rose-300'}`;
+    renderSummary(pct);
+  } else {
+    document.getElementById('scoreChip').textContent = '';
+  }
+
+  document.querySelectorAll('#palette .palette-btn').forEach((b, i) => {
+    const s = (state.answers[i] || { letters: [] }).letters;
+    if (state.submitted) {
+      const q = state.questions[i];
+      const g = grade(q, s);
+      b.className = 'palette-btn w-8 h-8 text-xs rounded-lg border transition ' + (!g.graded ? 'border-slate-400 text-slate-500' : g.isCorrect ? 'border-emerald-500 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300' : 'border-rose-500 bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300');
+    } else {
+      const on = s.length > 0;
+      b.className = 'palette-btn w-8 h-8 text-xs rounded-lg border transition ' + (on ? 'active border-indigo-500' : 'border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800');
+    }
+  });
+}
+
+function renderSummary(pct) {
+  const total = state.questions.length;
+  const graded = state.questions.reduce((n, q, i) => n + (grade(q, (state.answers[i] || { letters: [] }).letters).graded ? 1 : 0), 0);
+  const body = document.getElementById('summaryBody');
+  body.innerHTML = `
+    <div class="flex items-center justify-center gap-8 my-4 flex-wrap">
+      <div><p class="text-4xl font-black ${pct >= 70 ? 'text-emerald-500' : pct >= 40 ? 'text-amber-500' : 'text-rose-500'}">${pct}%</p><p class="text-xs text-slate-500 mt-1">Score</p></div>
+      <div><p class="text-3xl font-bold">${state.correctCount}</p><p class="text-xs text-slate-500 mt-1">Correct</p></div>
+      <div><p class="text-3xl font-bold text-slate-400">${total - state.correctCount}</p><p class="text-xs text-slate-500 mt-1">Incorrect</p></div>
+      <div><p class="text-3xl font-bold text-indigo-500">${graded}</p><p class="text-xs text-slate-500 mt-1">Graded</p></div>
+    </div>
+    <p class="text-sm text-slate-600 dark:text-slate-400">${pct >= 70 ? 'Great job — keep practicing to lock it in!' : pct >= 40 ? 'Solid attempt — review the incorrect answers below.' : 'Keep going — review every explanation and try again.'}</p>`;
+  document.getElementById('summaryCard').classList.remove('hidden');
+  document.getElementById('summaryCard').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+/* ---------------- Actions ---------------- */
+
+function submitAll() {
+  if (!state.questions.length) return;
+  state.submitted = true;
+  renderQuiz();
+}
+
+function resetQuiz() {
+  state.answers = {};
+  state.revealed = {};
+  state.submitted = false;
+  state.correctCount = 0;
+  renderQuiz();
+  document.getElementById('summaryCard').classList.add('hidden');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function exportJson() {
+  const data = { questions: state.questions.map(q => ({
+    id: q.id, question: q.text, options: q.options.map(o => ({ letter: o.letter, text: o.text })),
+    correct: q.correct, answerText: q.answerText, displayText: q.displayText || ''
+  })) };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'quiz-export.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+/* ---------------- File handling ---------------- */
+
+async function handlePdf(file) {
+  const status = document.getElementById('parseStatus');
+  try {
+    if (typeof pdfjsLib === 'undefined') throw new Error('pdf.js failed to load (no internet?). Use the text file instead.');
+    status.textContent = 'Parsing PDF…';
+    const buf = await file.arrayBuffer();
+    const doc = await pdfjsLib.getDocument({ data: buf }).promise;
+    let text = '';
+    for (let p = 1; p <= doc.numPages; p++) {
+      const page = await doc.getPage(p);
+      const tc = await page.getTextContent();
+      const lines = [];
+      const ytol = 2;
+      for (const it of tc.items) {
+        if (!it.str) continue;
+        const y = it.transform[5];
+        let line = lines.find(l => Math.abs(l.y - y) < ytol);
+        if (!line) { line = { y: y, items: [] }; lines.push(line); }
+        line.items.push(it);
+      }
+      lines.sort((a, b) => b.y - a.y);
+      for (const l of lines) {
+        l.items.sort((a, b) => a.transform[4] - b.transform[4]);
+        text += l.items.map(x => x.str).join(' ') + '\n';
+      }
+    }
+    loadContent(text);
+  } catch (err) {
+    status.textContent = 'PDF error: ' + err.message;
+    status.classList.add('text-rose-600', 'dark:text-rose-400');
+  }
+}
+
+function wireDropZone(zone, input, onFile) {
+  zone.addEventListener('click', () => input.click());
+  input.addEventListener('change', () => { if (input.files[0]) onFile(input.files[0]); });
+  ['dragover', 'dragenter'].forEach(ev => zone.addEventListener(ev, e => {
+    e.preventDefault(); zone.classList.add('border-indigo-500', 'bg-indigo-50', 'dark:bg-indigo-900/20');
+  }));
+  ['dragleave', 'drop'].forEach(ev => zone.addEventListener(ev, e => {
+    e.preventDefault(); zone.classList.remove('border-indigo-500', 'bg-indigo-50', 'dark:bg-indigo-900/20');
+  }));
+  zone.addEventListener('drop', e => {
+    const f = e.dataTransfer.files[0];
+    if (f) onFile(f);
+  });
+}
+
+/* ---------------- Theme ---------------- */
+
+function applyTheme(dark) {
+  document.documentElement.classList.toggle('dark', dark);
+  try { localStorage.setItem('quizlab-theme', dark ? 'dark' : 'light'); } catch (e) {}
+}
+
+document.getElementById('themeBtn').addEventListener('click', () => {
+  applyTheme(!document.documentElement.classList.contains('dark'));
+});
+
+/* ---------------- Wire up ---------------- */
+
+wireDropZone(document.getElementById('pdfDrop'), document.getElementById('pdfInput'), handlePdf);
+wireDropZone(document.getElementById('txtDrop'), document.getElementById('txtInput'), f => {
+  const reader = new FileReader();
+  reader.onload = () => loadContent(reader.result);
+  reader.readAsText(f);
+});
+
+document.getElementById('loadBtn').addEventListener('click', () => {
+  const content = document.getElementById('pasteArea').value.trim();
+  if (content) loadContent(content);
+  else flashNotice('Paste some content first, or upload a file.');
+});
+
+document.getElementById('sampleBtn').addEventListener('click', () => loadContent(SAMPLE));
+document.getElementById('exportBtn').addEventListener('click', exportJson);
+document.getElementById('submitAllBtn').addEventListener('click', submitAll);
+document.getElementById('resetBtn').addEventListener('click', resetQuiz);
+document.getElementById('resetAfterBtn').addEventListener('click', resetQuiz);
+document.getElementById('reviewWrongBtn').addEventListener('click', () => {
+  const wrong = state.questions.findIndex((q, i) => {
+    if (!state.submitted) return false;
+    const g = grade(q, (state.answers[i] || { letters: [] }).letters);
+    return g.graded && !g.isCorrect;
+  });
+  if (wrong >= 0) document.getElementById('q-' + wrong).scrollIntoView({ behavior: 'smooth', block: 'center' });
+  else flashNotice('No incorrect answers to review 🎉');
+});
+
+(function initTheme() {
+  let saved = null;
+  try { saved = localStorage.getItem('quizlab-theme'); } catch (e) {}
+  const dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+  applyTheme(dark);
+})();
+</script>
+</body>
+</html>
+

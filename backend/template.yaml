@@ -1,0 +1,118 @@
+# AWS SAM Template for Quiz Platform
+# Deploys to Lambda + HTTP API Gateway
+
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Description: Quiz Platform API - Dynamic MCQ generation via LLM
+
+Parameters:
+  GeminiApiKey:
+    Type: String
+    NoEcho: true
+    Description: Google Gemini API key (optional if using OpenAI)
+  OpenAIApiKey:
+    Type: String
+    NoEcho: true
+    Description: OpenAI API key (optional if using Gemini)
+  LlmProvider:
+    Type: String
+    Default: auto
+    AllowedValues:
+      - gemini
+      - openai
+      - auto
+    Description: LLM provider to use for quiz generation
+  LlmModel:
+    Type: String
+    Default: ''
+    Description: Optional model override (e.g., gemini-1.5-flash, gpt-4o-mini)
+  CacheTtlSeconds:
+    Type: Number
+    Default: 3600
+    Description: Response cache duration in seconds
+  RateLimitPerMinute:
+    Type: Number
+    Default: 10
+    Description: Maximum requests per IP per minute
+  LogLevel:
+    Type: String
+    Default: INFO
+    AllowedValues:
+      - DEBUG
+      - INFO
+      - WARNING
+      - ERROR
+    Description: Logging level
+  CorsOrigins:
+    Type: String
+    Default: '*'
+    Description: Comma-separated list of allowed CORS origins
+
+Globals:
+  Function:
+    Runtime: python3.12
+    MemorySize: 256
+    Timeout: 30
+    Environment:
+      Variables:
+        GEMINI_API_KEY: !Ref GeminiApiKey
+        OPENAI_API_KEY: !Ref OpenAIApiKey
+        LLM_PROVIDER: !Ref LlmProvider
+        LLM_MODEL: !Ref LlmModel
+        CACHE_TTL_SECONDS: !Ref CacheTtlSeconds
+        RATE_LIMIT_PER_MINUTE: !Ref RateLimitPerMinute
+        LOG_LEVEL: !Ref LogLevel
+        CORS_ORIGINS: !Ref CorsOrigins
+    Tracing: Active
+
+Resources:
+  QuizApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: app.main.handler
+      Description: Quiz Platform API - Generate MCQs via LLM
+      Events:
+        ApiEvent:
+          Type: HttpApi
+          Properties:
+            Path: /api/{proxy+}
+            Method: ANY
+            CorsConfiguration:
+              AllowOrigins: !Split [',', !Ref CorsOrigins]
+              AllowMethods:
+                - GET
+                - POST
+                - OPTIONS
+              AllowHeaders:
+                - Content-Type
+                - Authorization
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: '*'
+
+  # Log group for the function
+  QuizApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${QuizApiFunction}'
+      RetentionInDays: 7
+
+Outputs:
+  ApiUrl:
+    Description: API Gateway endpoint URL
+    Value: !Sub 'https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com'
+
+  QuizApiFunctionArn:
+    Description: Quiz API Lambda Function ARN
+    Value: !GetAtt QuizApiFunction.Arn
+
+  QuizApiFunctionName:
+    Description: Quiz API Lambda Function Name
+    Value: !Ref QuizApiFunction

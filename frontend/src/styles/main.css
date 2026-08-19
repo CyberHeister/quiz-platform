@@ -1,0 +1,186 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles for Quiz Platform */
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(100, 116, 139, 0.4);
+    border-radius: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@layer components {
+  /* Card component */
+  .card {
+    @apply bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  /* Quiz option styling */
+  .q-option {
+    @apply flex items-start gap-3 border rounded-xl px-4 py-3 cursor-pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .q-option:hover:not(:disabled) {
+    @apply border-indigo-300 dark:border-indigo-700;
+  }
+
+  .q-option.selected {
+    @apply border-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 ring-1 ring-indigo-400;
+  }
+
+  .q-option.correct {
+    @apply border-emerald-500 bg-emerald-50 dark:bg-emerald-900/30 ring-1 ring-emerald-500;
+  }
+
+  .q-option.incorrect {
+    @apply border-rose-500 bg-rose-50 dark:bg-rose-900/30 ring-1 ring-rose-500;
+  }
+
+  .q-option.missed {
+    @apply border-amber-500 bg-amber-50 dark:bg-amber-900/30 ring-1 ring-amber-500;
+  }
+
+  /* Radio and checkbox styling */
+  input[type="radio"],
+  input[type="checkbox"] {
+    accent-color: #6366f1;
+  }
+
+  input[type="radio"] {
+    @apply rounded-full;
+  }
+
+  input[type="checkbox"] {
+    @apply rounded;
+  }
+
+  /* Answer box */
+  .answer-box {
+    @apply rounded-xl border border-emerald-200 dark:border-emerald-800/70 bg-emerald-50/50 dark:bg-emerald-950/30 p-4 text-sm;
+  }
+
+  /* Badge styles */
+  .badge {
+    @apply px-2 py-0.5 rounded-full text-xs font-semibold;
+  }
+
+  .badge-single {
+    @apply badge bg-sky-100 dark:bg-sky-900 text-sky-700 dark:text-sky-300;
+  }
+
+  .badge-multi {
+    @apply badge bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300;
+  }
+
+  .badge-correct {
+    @apply badge bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300;
+  }
+
+  .badge-incorrect {
+    @apply badge bg-rose-100 dark:bg-rose-900 text-rose-700 dark:text-rose-300;
+  }
+
+  /* Loading skeleton */
+  .skeleton {
+    @apply animate-pulse bg-slate-200 dark:bg-slate-700 rounded;
+  }
+
+  /* Toast notification */
+  .toast {
+    @apply fixed bottom-4 right-4 max-w-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg p-4 z-50;
+    animation: slideIn 0.3s ease;
+  }
+
+  .toast-success {
+    @apply toast border-emerald-500;
+  }
+
+  .toast-error {
+    @apply toast border-rose-500;
+  }
+
+  .toast-warning {
+    @apply toast border-amber-500;
+  }
+}
+
+@layer utilities {
+  /* Transitions */
+  .transition-fast {
+    transition: all 0.15s ease;
+  }
+
+  .transition-normal {
+    transition: all 0.3s ease;
+  }
+
+  /* Button styles */
+  .btn {
+    @apply px-4 py-2 rounded-xl text-sm font-medium transition-fast;
+  }
+
+  .btn-primary {
+    @apply btn bg-indigo-600 hover:bg-indigo-700 text-white;
+  }
+
+  .btn-secondary {
+    @apply btn border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800;
+  }
+
+  .btn-success {
+    @apply btn bg-emerald-600 hover:bg-emerald-700 text-white;
+  }
+
+  .btn-danger {
+    @apply btn bg-rose-600 hover:bg-rose-700 text-white;
+  }
+
+  .btn-ghost {
+    @apply btn hover:bg-slate-100 dark:hover:bg-slate-800;
+  }
+}
+
+/* Animations */
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease;
+}
