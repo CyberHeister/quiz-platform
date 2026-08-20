@@ -72,6 +72,12 @@ async def root():
     return {"status": "ok", "message": "Quiz Platform API", "docs": "/docs"}
 
 
+@app.get("/health", include_in_schema=False)
+async def health_check_simple():
+    """Simple health check for Railway/load balancer."""
+    return {"status": "ok", "service": "quiz-platform-api"}
+
+
 # Lambda handler for AWS deployment
 handler = None
 
