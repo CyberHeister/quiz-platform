@@ -2,8 +2,6 @@
 # Optimized for home server with memory constraints (<250MB total)
 # Supports Tailscale Funnel and Cloudflare Tunnel exposure
 
-version: '3.8'
-
 services:
   # Backend API service - FastAPI with Uvicorn
   quiz-api:
