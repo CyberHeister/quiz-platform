@@ -1,7 +1,7 @@
-"""Application configuration via environment variables."""
+"""Application configuration via environment variables for self-hosted deployment."""
 
 from functools import lru_cache
-from typing import Literal, Optional
+from typing import List, Literal, Optional
 
 from pydantic_settings import BaseSettings
 
@@ -13,8 +13,8 @@ class Settings(BaseSettings):
     gemini_api_key: Optional[str] = None
     openai_api_key: Optional[str] = None
     llm_provider: Literal["gemini", "openai", "auto"] = "auto"
-    # Default model for gemini: gemini-3.6-flash (latest stable for free tier)
-    llm_model: Optional[str] = "gemini-3.6-flash"
+    # Default model for gemini
+    llm_model: Optional[str] = "gemini-1.5-flash"
 
     # Cache Configuration
     cache_ttl_seconds: int = 3600
@@ -26,8 +26,15 @@ class Settings(BaseSettings):
     # Logging
     log_level: str = "INFO"
 
-    # Server
+    # Server - CORS origins (comma-separated)
     cors_origins: str = "*"
+
+    @property
+    def cors_origins_list(self) -> List[str]:
+        """Parse CORS origins from comma-separated string."""
+        if self.cors_origins == "*":
+            return ["*"]
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
     @property
     def has_gemini(self) -> bool:

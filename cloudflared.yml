@@ -1,0 +1,43 @@
+# Cloudflare Tunnel Configuration for Quiz Platform
+# Copy this file and update with your tunnel details
+
+# Tunnel ID (from: cloudflared tunnel create quiz-platform)
+tunnel: <TUNNEL_ID>
+
+# Path to credentials file (from tunnel create output)
+credentials-file: /home/<user>/.cloudflared/<TUNNEL_ID>.json
+
+# Ingress rules - routes traffic to local services
+ingress:
+  # Main application - frontend + API via nginx proxy
+  - hostname: quiz.your-domain.com
+    service: https://localhost:443
+    originRequest:
+      # Disable TLS verification since we're using self-signed or no certs internally
+      noTLSVerify: true
+      # Connect timeout
+      connectTimeout: 30s
+      # Keep alive connections
+      keepAliveConnections: 10
+      # Keep alive timeout
+      keepAliveTimeout: 90s
+
+  # API direct access (optional - for debugging)
+  - hostname: api.your-domain.com
+    service: http://localhost:8000
+    originRequest:
+      noTLSVerify: true
+
+  # Health check endpoint (no auth, public)
+  - hostname: quiz.your-domain.com
+    path: /health
+    service: http://localhost:8000/health
+    originRequest:
+      noTLSVerify: true
+
+  # Catch-all: return 404 for unmatched routes
+  - service: http_status:404
+
+# Optional: Warp routing for tailnet access
+# warp-routing:
+#   enabled: true

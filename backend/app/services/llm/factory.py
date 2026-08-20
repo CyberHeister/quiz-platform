@@ -30,7 +30,7 @@ class LLMFactory:
         if not self.settings.has_gemini:
             return None
 
-        model = self.settings.llm_model or "gemini-3.6-flash"
+        model = self.settings.llm_model or "gemini-1.5-flash"
         return GeminiProvider(
             api_key=self.settings.gemini_api_key,
             model=model

@@ -1,11 +1,11 @@
-"""Quiz generation API routes."""
+"""Quiz generation API routes for self-hosted deployment."""
 
 import logging
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import JSONResponse
 
+from app.config import get_settings
 from app.exceptions import NoProviderError, QuizPlatformError, RateLimitError
 from app.models import QuizGenerateRequest, QuizGenerateResponse, HealthResponse
 from app.services.cache import get_cache
@@ -21,21 +21,21 @@ router = APIRouter(prefix="/api/quiz", tags=["quiz"])
     "/generate",
     response_model=QuizGenerateResponse,
     summary="Generate quiz questions",
-    description="Generate multiple-choice questions on a given topic using web scraping and/or LLM"
+    description="Generate multiple-choice questions on a given topic using LLM (Gemini/OpenAI)"
 )
 async def generate_quiz(
     request: QuizGenerateRequest,
     generator: QuizGenerator = Depends(get_generator)
 ) -> QuizGenerateResponse:
     """
-    Generate quiz questions.
+    Generate quiz questions using LLM.
 
-    Attempts to find real MCQs via web scraping first,
-    then falls back to LLM generation if needed.
+    Uses structured output prompting to generate verified questions
+    with options, correct answers, and explanations.
     """
     try:
         logger.info(
-            f"Generating quiz: topic='{request.topic[:30]}...', "
+            f"Generating quiz: topic='{request.topic[:50]}...', "
             f"difficulty={request.difficulty}, count={request.count}, type={request.question_type}"
         )
 
@@ -53,7 +53,7 @@ async def generate_quiz(
         )
 
     except NoProviderError as e:
-        logger.error(f"No LLM provider: {e}")
+        logger.error(f"No LLM provider configured: {e}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail={
@@ -78,7 +78,7 @@ async def generate_quiz(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={
                 "code": "INTERNAL_ERROR",
-                "message": "An unexpected error occurred"
+                "message": "An unexpected error occurred during quiz generation"
             }
         )
 
@@ -86,8 +86,8 @@ async def generate_quiz(
 @router.get(
     "/health",
     response_model=HealthResponse,
-    summary="Health check",
-    description="Check API health status and provider availability"
+    summary="Health check with provider status",
+    description="Check API health status and LLM provider availability"
 )
 async def health_check(
     llm_factory: LLMFactory = Depends(get_llm_factory),
@@ -103,7 +103,8 @@ async def health_check(
             providers["gemini"] = await gemini.health_check()
         else:
             providers["gemini"] = False
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Gemini health check failed: {e}")
         providers["gemini"] = False
 
     # Check OpenAI
@@ -113,7 +114,8 @@ async def health_check(
             providers["openai"] = await openai.health_check()
         else:
             providers["openai"] = False
-    except Exception:
+    except Exception as e:
+        logger.warning(f"OpenAI health check failed: {e}")
         providers["openai"] = False
 
     # Determine overall status
@@ -140,5 +142,5 @@ async def health_check(
     description="Lightweight health check without external dependencies"
 )
 async def simple_health_check() -> dict:
-    """Simple health check for Railway/load balancer - no external calls."""
+    """Simple health check for load balancers - no external calls."""
     return {"status": "ok", "service": "quiz-platform-api"}
