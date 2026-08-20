@@ -122,6 +122,16 @@
   .toast-warning {
     @apply toast border-amber-500;
   }
+
+  /* Proctoring warning toast */
+  .proctoring-warning {
+    @apply fixed bottom-4 right-4 max-w-sm z-50;
+    animation: slideIn 0.3s ease;
+  }
+
+  .proctoring-warning .toast-content {
+    @apply flex items-start gap-3 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-xl p-4;
+  }
 }
 
 @layer utilities {

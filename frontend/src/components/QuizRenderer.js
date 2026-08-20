@@ -9,10 +9,13 @@ export class QuizRenderer {
   constructor(state, onUpdate) {
     this.state = state;
     this.onUpdate = onUpdate;
+    this.proctoringEnabled = true;
+    this.proctoringViolations = [];
   }
 
   init() {
     this.bindGlobalEvents();
+    this.initProctoring();
   }
 
   bindGlobalEvents() {
@@ -25,6 +28,143 @@ export class QuizRenderer {
 
     // Review wrong button
     document.getElementById('reviewWrongBtn').addEventListener('click', () => this.scrollToFirstIncorrect());
+  }
+
+  initProctoring() {
+    if (!this.proctoringEnabled) return;
+
+    // Track tab/window focus
+    document.addEventListener('visibilitychange', () => this.handleVisibilityChange());
+    window.addEventListener('blur', () => this.handleWindowBlur());
+    window.addEventListener('focus', () => this.handleWindowFocus());
+
+    // Disable right-click context menu
+    document.addEventListener('contextmenu', (e) => this.handleContextMenu(e));
+
+    // Disable copy/paste/cut
+    document.addEventListener('copy', (e) => this.handleCopyPaste(e, 'copy'));
+    document.addEventListener('paste', (e) => this.handleCopyPaste(e, 'paste'));
+    document.addEventListener('cut', (e) => this.handleCopyPaste(e, 'cut'));
+
+    // Disable keyboard shortcuts for dev tools, etc.
+    document.addEventListener('keydown', (e) => this.handleKeyDown(e));
+
+    // Track fullscreen changes (for fullscreen proctoring)
+    document.addEventListener('fullscreenchange', () => this.handleFullscreenChange());
+
+    console.log('Proctoring initialized');
+  }
+
+  handleVisibilityChange() {
+    if (document.hidden) {
+      this.recordViolation('tab_switch', 'Tab switched or window minimized');
+    }
+  }
+
+  handleWindowBlur() {
+    if (this.state.submitted) return; // Only track during active quiz
+    this.recordViolation('focus_lost', 'Window lost focus');
+  }
+
+  handleWindowFocus() {
+    // Window regained focus - could log this
+  }
+
+  handleContextMenu(e) {
+    if (!this.state.submitted) {
+      e.preventDefault();
+      this.recordViolation('right_click', 'Right-click context menu blocked');
+      this.showProctoringWarning('Right-click is disabled during the quiz');
+    }
+  }
+
+  handleCopyPaste(e, action) {
+    if (!this.state.submitted) {
+      e.preventDefault();
+      this.recordViolation(action, `${action.charAt(0).toUpperCase() + action.slice(1)} blocked`);
+      this.showProctoringWarning(`${action.charAt(0).toUpperCase() + action.slice(1)} is disabled during the quiz`);
+    }
+  }
+
+  handleKeyDown(e) {
+    // Block common dev tools shortcuts
+    const blockedKeys = [
+      { key: 'F12' },
+      { key: 'I', ctrl: true, shift: true }, // Ctrl+Shift+I
+      { key: 'J', ctrl: true, shift: true }, // Ctrl+Shift+J
+      { key: 'C', ctrl: true, shift: true }, // Ctrl+Shift+C
+      { key: 'U', ctrl: true }, // Ctrl+U (view source)
+      { key: 'S', ctrl: true }, // Ctrl+S (save)
+      { key: 'P', ctrl: true, shift: true }, // Ctrl+Shift+P (command palette)
+    ];
+
+    for (const combo of blockedKeys) {
+      if (e.key === combo.key &&
+          (!combo.ctrl || e.ctrlKey) &&
+          (!combo.shift || e.shiftKey) &&
+          (!combo.alt || e.altKey)) {
+        e.preventDefault();
+        this.recordViolation('devtools_shortcut', `Blocked shortcut: ${combo.key}${combo.ctrl ? ' + Ctrl' : ''}${combo.shift ? ' + Shift' : ''}${combo.alt ? ' + Alt' : ''}`);
+        this.showProctoringWarning('Developer tools shortcuts are disabled');
+        return;
+      }
+    }
+  }
+
+  handleFullscreenChange() {
+    if (!document.fullscreenElement && this.state.questions.length > 0 && !this.state.submitted) {
+      this.recordViolation('fullscreen_exit', 'Exited fullscreen mode');
+      this.showProctoringWarning('Please remain in fullscreen mode during the quiz');
+    }
+  }
+
+  recordViolation(type, message) {
+    const violation = {
+      type,
+      message,
+      timestamp: new Date().toISOString(),
+      questionIndex: this.getCurrentQuestionIndex()
+    };
+    this.proctoringViolations.push(violation);
+    console.warn('Proctoring violation:', violation);
+  }
+
+  getCurrentQuestionIndex() {
+    // Find the question currently in view (approximate)
+    const cards = document.querySelectorAll('#questionsList .card');
+    for (let i = 0; i < cards.length; i++) {
+      const rect = cards[i].getBoundingClientRect();
+      if (rect.top >= 0 && rect.top < window.innerHeight / 2) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  showProctoringWarning(message) {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = 'toast-error proctoring-warning';
+    toast.innerHTML = `
+      <div class="flex items-start gap-3 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
+        <span class="text-amber-500 text-xl">⚠️</span>
+        <div class="flex-1">
+          <p class="font-medium text-amber-800 dark:text-amber-200">Proctoring Alert</p>
+          <p class="text-sm text-amber-700 dark:text-amber-300">${message}</p>
+          <p class="text-xs text-amber-600 dark:text-amber-400 mt-1">Violations are being recorded</p>
+        </div>
+      </div>
+    `;
+    container.appendChild(toast);
+    setTimeout(() => toast.remove(), 5000);
+  }
+
+  getProctoringReport() {
+    return {
+      violations: this.proctoringViolations,
+      totalViolations: this.proctoringViolations.length,
+      violationTypes: [...new Set(this.proctoringViolations.map(v => v.type))]
+    };
   }
 
   renderQuiz() {
@@ -65,7 +205,7 @@ export class QuizRenderer {
     const answerBody = [q.displayText, q.answerText].filter(Boolean).join('\n\n');
     const hasAnswer = q.correct.length > 0 || !!answerBody;
 
-    // AI explanation buttons
+    // AI explanation buttons - only show when answer is revealed or after submission for correct answer
     const aiBtns = `
       <div class="mt-3 flex flex-wrap items-center gap-2">
         <span class="text-xs text-slate-500 dark:text-slate-400 font-medium mr-1">Explain:</span>
@@ -73,7 +213,7 @@ export class QuizRenderer {
         <button data-ai="gemini" data-idx="${idx}" class="aiBtn px-3 py-1.5 rounded-lg bg-gradient-to-r from-sky-500 to-indigo-500 hover:opacity-90 text-white text-xs font-medium transition">✦ Explain with Gemini</button>
       </div>`;
 
-    // Answer box
+    // Answer box - full explanation with AI buttons
     const answerBox = `
       <div class="answer-box rounded-xl border border-emerald-200 dark:border-emerald-800/70 bg-emerald-50/50 dark:bg-emerald-950/30 p-4 text-sm">
         <p class="font-semibold mb-1.5">Answer</p>
@@ -113,22 +253,36 @@ export class QuizRenderer {
       return head + '<p class="mt-3 text-xs text-amber-600 dark:text-amber-400">No answer key detected for this question.</p>';
     }
 
+    // Track which option was clicked (for inline feedback)
+    const clickedOption = this.state.clickedOption ? this.state.clickedOption[idx] : null;
+
     // Options HTML
     const optsHTML = q.options.map((o, oi) => {
       const checked = sel.includes(o.letter);
+      const isCorrectOption = q.correct.includes(o.letter);
       let cls = 'q-option flex items-start gap-3 border rounded-xl px-4 py-3 cursor-pointer ';
       let extra = '';
+      let inlineFeedback = '';
 
+      // After submission - show all answers
       if (this.state.submitted && g.graded) {
-        const isCor = q.correct.includes(o.letter);
-        if (isCor && checked) cls += 'correct';
-        else if (isCor && !checked) {
+        if (isCorrectOption && checked) cls += 'correct';
+        else if (isCorrectOption && !checked) {
           if (isMulti) { cls += 'missed'; extra = '<span class="ml-1 text-[11px] font-semibold text-amber-600 dark:text-amber-400">Missing</span>'; }
           else cls += 'border-emerald-400 bg-emerald-50/60 dark:bg-emerald-900/20';
         }
-        else if (checked && !isCor) cls += 'incorrect';
+        else if (checked && !isCorrectOption) cls += 'incorrect';
         else cls += 'border-slate-200 dark:border-slate-700 opacity-70';
-      } else {
+      }
+      // Before submission - inline feedback on option click
+      else if (!this.state.submitted && clickedOption === o.letter && !isMulti) {
+        if (isCorrectOption) {
+          cls += 'border-emerald-400 bg-emerald-50/60 dark:bg-emerald-900/20';
+        } else {
+          cls += 'border-rose-400 bg-rose-50/60 dark:bg-rose-900/20';
+        }
+      }
+      else {
         cls += checked ? 'selected' : 'border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700';
       }
 
@@ -136,24 +290,48 @@ export class QuizRenderer {
         ? `<input type="${type}" disabled ${checked ? 'checked' : ''} class="mt-1 w-4 h-4 ${type === 'radio' ? 'rounded-full' : 'rounded'} shrink-0">`
         : `<input type="${type}" name="opt-${idx}" value="${o.letter}" ${checked ? 'checked' : ''} class="mt-1 w-4 h-4 ${type === 'radio' ? 'rounded-full' : 'rounded'} shrink-0" data-idx="${idx}" data-letter="${o.letter}">`;
 
-      return `<label class="${cls}">${input}<span class="text-sm">${extra}<span class="font-semibold">${this.esc(o.letter)})</span> ${this.esc(o.text)}</span></label>`;
+      // Inline feedback for single-select options (before submission)
+      if (!this.state.submitted && clickedOption === o.letter && !isMulti && g.graded) {
+        if (isCorrectOption) {
+          // Correct answer clicked - show in feedback section below
+        } else {
+          // Wrong answer clicked - show one-liner
+          inlineFeedback = `<div class="mt-2 text-xs text-rose-600 dark:text-rose-400 font-medium">This answer is incorrect.</div>`;
+        }
+      }
+
+      return `<label class="${cls}">${input}<span class="text-sm">${extra}<span class="font-semibold">${this.esc(o.letter)})</span> ${this.esc(o.text)}</span></label>${inlineFeedback}`;
     }).join('');
 
-    // Feedback
+    // Build inline feedback for correct answer click (before submission)
+    let correctClickFeedback = '';
+    if (!this.state.submitted && clickedOption && !isMulti) {
+      const clickedOptionObj = q.options.find(o => o.letter === clickedOption);
+      if (clickedOptionObj && q.correct.includes(clickedOption)) {
+        // Correct answer was clicked - show full explanation with AI buttons
+        correctClickFeedback = `
+          <div class="mt-4 rounded-xl border border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 p-4 text-sm">
+            <p class="font-semibold text-emerald-700 dark:text-emerald-400">✓ Correct!</p>
+            <p class="text-slate-600 dark:text-slate-300 mt-1">${this.esc(answerBody || 'Great choice! You selected the right answer.')}</p>
+            ${aiBtns}
+          </div>`;
+      }
+    }
+
+    // Feedback after submission
     const feedback = this.state.submitted ? this.buildFeedbackHTML(q, idx, g, sel) : '';
 
-    // Check button
-    const checkBtn = this.state.submitted ? '' :
-      `<button data-check="${idx}" class="checkBtn px-4 py-2 rounded-xl border text-sm font-medium transition ${revealed ? 'border-slate-400 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800' : 'border-indigo-500 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30'}">${revealed ? 'Hide Answer' : 'Check Answer'}</button>`;
+    // No "Check Answer" button anymore - removed as per requirements
 
-    // Answer block
-    const answerBlock = revealed ? (hasAnswer ? answerBox : '<p class="mt-3 text-xs text-amber-600 dark:text-amber-400">No answer key detected for this question.</p>') : '';
+    // Answer block (only shown after submission or when explicitly revealed)
+    const answerBlock = this.state.submitted ? (hasAnswer ? answerBox : '<p class="mt-3 text-xs text-amber-600 dark:text-amber-400">No answer key detected for this question.</p>') : '';
 
     return `
       ${head}
       <div class="space-y-2" data-qid="${idx}">${optsHTML}</div>
+      ${correctClickFeedback}
       ${answerBlock}
-      <div class="mt-4 flex flex-wrap items-center gap-2">${checkBtn}</div>
+      <div class="mt-4 flex flex-wrap items-center gap-2"></div>
       ${feedback}`;
   }
 
@@ -204,11 +382,25 @@ export class QuizRenderer {
       inp.addEventListener('change', () => {
         const type = inp.type;
         const letters = (this.state.answers[idx] || { letters: [] }).letters;
+        const q = this.state.questions[idx];
 
         if (type === 'radio') {
           this.state.answers[idx] = { letters: [inp.value] };
           card.querySelectorAll('input[data-idx]').forEach(o => o.checked = o.value === inp.value);
+
+          // Track clicked option for inline feedback (single-select only)
+          if (!this.state.clickedOption) this.state.clickedOption = {};
+          this.state.clickedOption[idx] = inp.value;
+
+          // Grade immediately for single-select before submission
+          if (!this.state.submitted && q) {
+            const g = grade(q, [inp.value]);
+            if (g.graded) {
+              this.renderCard(idx); // Re-render to show inline feedback
+            }
+          }
         } else {
+          // For multi-select, just update selection
           const set = new Set(letters);
           inp.checked ? set.add(inp.value) : set.delete(inp.value);
           this.state.answers[idx] = { letters: [...set] };
@@ -218,14 +410,7 @@ export class QuizRenderer {
       });
     });
 
-    // Check answer button
-    card.querySelectorAll('.checkBtn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const i = parseInt(btn.dataset.check, 10);
-        this.state.revealed[i] = !this.state.revealed[i];
-        this.renderCard(i);
-      });
-    });
+    // Check answer button - removed per requirements
 
     // AI explanation buttons
     card.querySelectorAll('.aiBtn').forEach(btn => {
@@ -322,6 +507,9 @@ export class QuizRenderer {
     const total = this.state.questions.length;
     const graded = this.state.questions.reduce((n, q, i) => n + (grade(q, (this.state.answers[i] || { letters: [] }).letters).graded ? 1 : 0), 0);
 
+    const proctoringReport = this.getProctoringReport();
+    const hasViolations = proctoringReport.totalViolations > 0;
+
     const body = document.getElementById('summaryBody');
     body.innerHTML = `
       <div class="flex items-center justify-center gap-8 my-4 flex-wrap">
@@ -330,10 +518,77 @@ export class QuizRenderer {
         <div><p class="text-3xl font-bold text-slate-400">${total - this.state.correctCount}</p><p class="text-xs text-slate-500 mt-1">Incorrect</p></div>
         <div><p class="text-3xl font-bold text-indigo-500">${graded}</p><p class="text-xs text-slate-500 mt-1">Graded</p></div>
       </div>
-      <p class="text-sm text-slate-600 dark:text-slate-400">${pct >= 70 ? 'Great job — keep practicing to lock it in!' : pct >= 40 ? 'Solid attempt — review the incorrect answers below.' : 'Keep going — review every explanation and try again.'}</p>`;
+
+      ${hasViolations ? `
+        <div class="proctoring-summary mt-4 p-4 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/30">
+          <div class="flex items-center justify-between mb-2">
+            <h4 class="font-semibold text-amber-800 dark:text-amber-200">Proctoring Report</h4>
+            <button id="viewProctoringBtn" class="px-3 py-1.5 text-xs font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-800/50 rounded-lg transition">View Details</button>
+          </div>
+          <p class="text-sm text-amber-700 dark:text-amber-300">${proctoringReport.totalViolations} violation${proctoringReport.totalViolations !== 1 ? 's' : ''} recorded: ${proctoringReport.violationTypes.join(', ')}</p>
+        </div>
+      ` : `
+        <div class="proctoring-summary mt-4 p-4 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/30">
+          <div class="flex items-center justify-between">
+            <span class="font-semibold text-emerald-800 dark:text-emerald-200">✓ No proctoring violations</span>
+            <button id="viewProctoringBtn" class="px-3 py-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-800/50 rounded-lg transition">View Report</button>
+          </div>
+        </div>
+      `}
+
+      <p class="text-sm text-slate-600 dark:text-slate-400 mt-4">${pct >= 70 ? 'Great job — keep practicing to lock it in!' : pct >= 40 ? 'Solid attempt — review the incorrect answers below.' : 'Keep going — review every explanation and try again.'}</p>`;
+
+    // Bind proctoring report button
+    document.getElementById('viewProctoringBtn').addEventListener('click', () => this.showProctoringReport());
 
     document.getElementById('summaryCard').classList.remove('hidden');
     document.getElementById('summaryCard').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  showProctoringReport() {
+    const report = this.getProctoringReport();
+    const container = document.getElementById('toastContainer');
+
+    const toast = document.createElement('div');
+    toast.className = 'proctoring-report-toast';
+    toast.innerHTML = `
+      <div class="fixed bottom-4 right-4 max-w-lg z-50 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl p-5 animate-fadeIn">
+        <div class="flex items-start justify-between mb-4">
+          <h3 class="text-lg font-bold text-slate-900 dark:text-slate-100">Proctoring Report</h3>
+          <button class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300" onclick="this.closest('.proctoring-report-toast').remove()">×</button>
+        </div>
+
+        <div class="space-y-3">
+          <div class="p-3 rounded-lg ${report.totalViolations > 0 ? 'bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800' : 'bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800'}">
+            <p class="font-medium ${report.totalViolations > 0 ? 'text-rose-800 dark:text-rose-200' : 'text-emerald-800 dark:text-emerald-200'}">
+              ${report.totalViolations > 0 ? `⚠️ ${report.totalViolations} violation${report.totalViolations !== 1 ? 's' : ''} detected` : '✅ No violations detected'}
+            </p>
+            <p class="text-sm ${report.totalViolations > 0 ? 'text-rose-700 dark:text-rose-300' : 'text-emerald-700 dark:text-emerald-300'} mt-1">
+              Types: ${report.violationTypes.length ? report.violationTypes.join(', ') : 'None'}
+            </p>
+          </div>
+
+          ${report.totalViolations > 0 ? `
+            <div class="max-h-64 overflow-y-auto space-y-2">
+              <h4 class="font-medium text-slate-700 dark:text-slate-300">Violation Details:</h4>
+              ${report.violations.map(v => `
+                <div class="p-2 bg-slate-50 dark:bg-slate-700/50 rounded-lg text-xs">
+                  <div class="flex justify-between">
+                    <span class="font-mono text-rose-600 dark:text-rose-400">${v.type}</span>
+                    <span class="text-slate-500 dark:text-slate-400">${new Date(v.timestamp).toLocaleTimeString()}</span>
+                  </div>
+                  <p class="text-slate-600 dark:text-slate-400">${v.message}</p>
+                  ${v.questionIndex >= 0 ? `<p class="text-slate-500 dark:text-slate-500">Question ${v.questionIndex + 1}</p>` : ''}
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    `;
+
+    container.appendChild(toast);
+    setTimeout(() => toast.remove(), 15000);
   }
 
   submitAll() {
@@ -347,6 +602,8 @@ export class QuizRenderer {
     this.state.revealed = {};
     this.state.submitted = false;
     this.state.correctCount = 0;
+    this.state.clickedOption = {};
+    this.proctoringViolations = [];
     this.renderQuiz();
     document.getElementById('summaryCard').classList.add('hidden');
     document.getElementById('quizArea').classList.add('hidden');

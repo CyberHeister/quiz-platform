@@ -105,6 +105,7 @@ export class QuizConfig {
       this.state.revealed = {};
       this.state.submitted = false;
       this.state.correctCount = 0;
+      this.state.clickedOption = {};
       this.state.generator = {
         loading: false,
         error: null,
@@ -198,6 +199,7 @@ export class QuizConfig {
         this.state.revealed = {};
         this.state.submitted = false;
         this.state.correctCount = 0;
+        this.state.clickedOption = {};
         this.state.generator = {
           loading: false,
           error: null,

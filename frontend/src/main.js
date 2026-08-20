@@ -14,6 +14,7 @@ const state = {
   revealed: {},
   submitted: false,
   correctCount: 0,
+  clickedOption: {},
   generator: {
     loading: false,
     error: null,
