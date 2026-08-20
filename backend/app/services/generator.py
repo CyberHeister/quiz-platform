@@ -47,6 +47,34 @@ class QuizGenerator:
                 logger.warning(f"Failed to initialize scraper: {e}")
         return self._scraper
 
+    async def _try_fallback_provider(
+        self,
+        original_error: Exception,
+        topic: str,
+        difficulty: str,
+        count: int,
+        question_type: str
+    ) -> List[QuizQuestion]:
+        """Try fallback provider when primary fails with quota error."""
+        try:
+            # Determine which provider was primary from the original error
+            error_str = str(original_error).lower()
+            primary = "openai" if "openai" in error_str else "gemini"
+            fallback = self.llm_factory._create_gemini_provider() if primary == "openai" else self.llm_factory._create_openai_provider()
+
+            if fallback:
+                logger.info(f"Trying fallback provider: {fallback.provider_name}")
+                questions = await fallback.generate_questions(
+                    topic=topic,
+                    difficulty=difficulty,
+                    count=count,
+                    question_type=question_type
+                )
+                return questions
+        except Exception as e:
+            logger.error(f"Fallback provider also failed: {e}")
+        return []
+
     async def generate(
         self,
         topic: str,
@@ -139,7 +167,24 @@ class QuizGenerator:
 
             except Exception as e:
                 logger.error(f"LLM generation failed: {e}")
+                # Check for quota/rate limit errors - try fallback provider
+                error_str = str(e).lower()
+                if "429" in error_str or "quota" in error_str or "rate limit" in error_str:
+                    logger.warning("Primary provider quota exceeded, trying fallback...")
+                    fallback = await self._try_fallback_provider(
+                        e, topic, difficulty, count - len(questions), question_type
+                    )
+                    if fallback:
+                        questions.extend(fallback)
+                        source = "llm"
+                        continue
+
                 if not questions:
+                    if "429" in error_str or "quota" in error_str:
+                        raise QuizPlatformError(
+                            "API quota exceeded. Please add a Gemini API key or upgrade your OpenAI plan.",
+                            code="QUOTA_EXCEEDED"
+                        )
                     raise QuizPlatformError(
                         f"Failed to generate questions: {str(e)}"
                     )
