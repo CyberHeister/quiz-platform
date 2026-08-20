@@ -4,7 +4,7 @@ import { resolve } from 'path'
 export default defineConfig({
   root: '.',
   publicDir: 'public',
-  base: '/quiz-platform/',
+  base: '/',
   build: {
     outDir: 'dist',
     emptyOutDir: true
