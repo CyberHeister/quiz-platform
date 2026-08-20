@@ -7,36 +7,32 @@ from typing import AsyncGenerator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+# Setup logging early
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Import config after logging is set up
 from app.config import get_settings
 from app.routes import quiz
-from app.utils.logger import setup_logging
+# from app.utils.logger import setup_logging
 
-# Setup logging
-setup_logging()
-logger = logging.getLogger(__name__)
+# setup_logging()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan handler."""
-    settings = get_settings()
-
-    # Startup
-    logger.info(
-        f"Starting Quiz Platform API - "
-        f"Gemini: {settings.has_gemini}, OpenAI: {settings.has_openai}"
-    )
-
-    # Validate configuration
-    if not settings.has_any_provider:
-        logger.warning(
-            "No LLM API keys configured. "
-            "Set GEMINI_API_KEY and/or OPENAI_API_KEY environment variables."
+    try:
+        settings = get_settings()
+        logger.info(
+            f"Starting Quiz Platform API - "
+            f"Gemini: {settings.has_gemini}, OpenAI: {settings.has_openai}"
         )
-
+        if not settings.has_any_provider:
+            logger.warning("No LLM API keys configured.")
+    except Exception as e:
+        logger.error(f"Startup error: {e}")
     yield
-
-    # Shutdown
     logger.info("Shutting down Quiz Platform API")
 
 
@@ -46,13 +42,14 @@ app = FastAPI(
     description="Dynamic MCQ generation via web scraping and LLM",
     version="1.0.0",
     lifespan=lifespan,
-    docs_url="/docs" if get_settings().log_level.upper() == "DEBUG" else None,
-    redoc_url="/redoc" if get_settings().log_level.upper() == "DEBUG" else None,
 )
 
 # Configure CORS
-settings = get_settings()
-origins = settings.cors_origins.split(",") if settings.cors_origins else ["*"]
+try:
+    settings = get_settings()
+    origins = settings.cors_origins.split(",") if settings.cors_origins else ["*"]
+except Exception:
+    origins = ["*"]
 
 app.add_middleware(
     CORSMiddleware,
@@ -91,11 +88,4 @@ except ImportError:
 
 if __name__ == "__main__":
     import uvicorn
-
-    uvicorn.run(
-        "app.main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,
-        log_level="info"
-    )
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, log_level="info")
