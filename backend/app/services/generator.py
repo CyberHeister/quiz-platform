@@ -177,17 +177,20 @@ class QuizGenerator:
                     if fallback:
                         questions.extend(fallback)
                         source = "llm"
-                        continue
-
-                if not questions:
-                    if "429" in error_str or "quota" in error_str:
+                    else:
+                        if not questions:
+                            raise QuizPlatformError(
+                                "API quota exceeded. Please add a Gemini API key or upgrade your OpenAI plan.",
+                                code="QUOTA_EXCEEDED"
+                            )
                         raise QuizPlatformError(
-                            "API quota exceeded. Please add a Gemini API key or upgrade your OpenAI plan.",
-                            code="QUOTA_EXCEEDED"
+                            f"Failed to generate questions: {str(e)}"
                         )
-                    raise QuizPlatformError(
-                        f"Failed to generate questions: {str(e)}"
-                    )
+                else:
+                    if not questions:
+                        raise QuizPlatformError(
+                            f"Failed to generate questions: {str(e)}"
+                        )
 
         # Final validation
         if not questions:
