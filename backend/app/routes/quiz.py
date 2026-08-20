@@ -132,3 +132,13 @@ async def health_check(
         providers=providers,
         cache=cache.get_stats()
     )
+
+
+@router.get(
+    "/health/simple",
+    summary="Simple health check for load balancers",
+    description="Lightweight health check without external dependencies"
+)
+async def simple_health_check() -> dict:
+    """Simple health check for Railway/load balancer - no external calls."""
+    return {"status": "ok", "service": "quiz-platform-api"}
