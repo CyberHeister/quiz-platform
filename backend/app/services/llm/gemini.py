@@ -49,13 +49,13 @@ Generate {count} questions now:"""
 class GeminiProvider(LLMProvider):
     """Google Gemini API provider for quiz generation."""
 
-    def __init__(self, api_key: str, model: str = "gemini-1.5-flash"):
+    def __init__(self, api_key: str, model: str = "gemini-3.6-flash"):
         """
         Initialize Gemini provider.
 
         Args:
             api_key: Google Gemini API key
-            model: Model identifier (default: gemini-1.5-flash)
+            model: Model identifier (default: gemini-3.6-flash)
         """
         self._api_key = api_key
         self._model = model

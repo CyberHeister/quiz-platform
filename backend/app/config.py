@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     openai_api_key: Optional[str] = None
     llm_provider: Literal["gemini", "openai", "auto"] = "auto"
     # Default model for gemini
-    llm_model: Optional[str] = "gemini-1.5-flash"
+    llm_model: Optional[str] = "gemini-3.6-flash"
 
     # Cache Configuration
     cache_ttl_seconds: int = 3600

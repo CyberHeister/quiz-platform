@@ -22,6 +22,11 @@ export class QuizConfig {
       difficultySelect: document.getElementById('difficultySelect'),
       countInput: document.getElementById('countInput'),
       questionTypeRadios: document.querySelectorAll('input[name="questionType"]'),
+      quizModeRadios: document.querySelectorAll('input[name="quizMode"]'),
+      examTimerPresets: document.getElementById('examTimerPresets'),
+      presetBtns: document.querySelectorAll('.preset-btn'),
+      customTimerInput: document.getElementById('customTimerInput'),
+      customTimerMinutes: document.getElementById('customTimerMinutes'),
       generateBtn: document.getElementById('generateBtn'),
       generateBtnText: document.getElementById('generateBtnText'),
       generateBtnSpinner: document.getElementById('generateBtnSpinner'),
@@ -30,6 +35,7 @@ export class QuizConfig {
     };
 
     this.bindEvents();
+    this.updateExamTimerVisibility();
   }
 
   bindEvents() {
@@ -46,6 +52,16 @@ export class QuizConfig {
       if (val > 50) e.target.value = 50;
     });
 
+    // Quiz mode change - show/hide exam timer presets
+    this.elements.quizModeRadios.forEach(radio => {
+      radio.addEventListener('change', () => this.updateExamTimerVisibility());
+    });
+
+    // Exam timer preset buttons
+    this.elements.presetBtns.forEach(btn => {
+      btn.addEventListener('click', (e) => this.handlePresetClick(e.target));
+    });
+
     // Generate button
     this.elements.generateBtn.addEventListener('click', () => this.handleGenerate());
 
@@ -53,6 +69,57 @@ export class QuizConfig {
     if (this.elements.fileInput) {
       this.elements.fileInput.addEventListener('change', (e) => this.handleFileUpload(e));
     }
+  }
+
+  updateExamTimerVisibility() {
+    const selectedMode = document.querySelector('input[name="quizMode"]:checked')?.value || 'mock';
+    if (selectedMode === 'exam') {
+      this.elements.examTimerPresets.classList.remove('hidden');
+    } else {
+      this.elements.examTimerPresets.classList.add('hidden');
+      this.elements.customTimerInput.classList.add('hidden');
+    }
+  }
+
+  handlePresetClick(btn) {
+    // Update active state
+    this.elements.presetBtns.forEach(b => {
+      b.classList.remove('border-indigo-500', 'bg-indigo-50', 'dark:bg-indigo-900/30');
+      b.classList.add('border-slate-300', 'dark:border-slate-700');
+    });
+    btn.classList.remove('border-slate-300', 'dark:border-slate-700');
+    btn.classList.add('border-indigo-500', 'bg-indigo-50', 'dark:bg-indigo-900/30');
+
+    const preset = btn.dataset.preset;
+    if (preset === 'custom') {
+      this.elements.customTimerInput.classList.remove('hidden');
+    } else {
+      this.elements.customTimerInput.classList.add('hidden');
+    }
+  }
+
+  getConfig() {
+    const topic = this.elements.topicInput.value.trim();
+    const difficulty = this.elements.difficultySelect.value;
+    const count = parseInt(this.elements.countInput.value) || 10;
+    const typeRadio = document.querySelector('input[name="questionType"]:checked');
+    const questionType = typeRadio ? typeRadio.value : 'mixed';
+    const modeRadio = document.querySelector('input[name="quizMode"]:checked');
+    const quizMode = modeRadio ? modeRadio.value : 'mock';
+
+    // Get exam timer duration if in exam mode
+    let examTimerMinutes = null;
+    if (quizMode === 'exam') {
+      const activePreset = document.querySelector('.preset-btn.border-indigo-500')?.dataset.preset;
+      if (activePreset === 'practitioner') examTimerMinutes = 90;
+      else if (activePreset === 'associate') examTimerMinutes = 130;
+      else if (activePreset === 'professional') examTimerMinutes = 170;
+      else if (activePreset === 'custom') {
+        examTimerMinutes = parseInt(this.elements.customTimerMinutes.value) || 60;
+      }
+    }
+
+    return { topic, difficulty, count, questionType, quizMode, examTimerMinutes };
   }
 
   validateTopic(topic) {

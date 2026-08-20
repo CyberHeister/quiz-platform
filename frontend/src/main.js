@@ -15,6 +15,8 @@ const state = {
   submitted: false,
   correctCount: 0,
   clickedOption: {},
+  quizMode: 'mock',
+  examTimer: null,
   generator: {
     loading: false,
     error: null,
@@ -32,6 +34,13 @@ function handleQuizUpdate() {
     document.getElementById('quizArea').classList.remove('hidden');
     document.getElementById('resetBtn').classList.remove('hidden');
     document.getElementById('summaryCard').classList.add('hidden');
+
+    // Pass quiz mode and timer to renderer
+    quizRenderer.setQuizMode(state.quizMode);
+    if (state.quizMode === 'exam' && state.examTimerMinutes) {
+      quizRenderer.startExamTimer(state.examTimerMinutes);
+    }
+
     quizRenderer.renderQuiz();
   }
 }

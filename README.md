@@ -1,6 +1,6 @@
 # Quiz Lab — Dynamic MCQ Practice Platform
 
-A full-stack quiz platform that generates multiple-choice questions dynamically using AI. Supports both web scraping and LLM-based question generation with dual deployment options.
+A full-stack quiz platform that generates multiple-choice questions dynamically using AI. Supports both web scraping and LLM-based question generation with flexible quiz modes for practice and examination.
 
 ## Features
 
@@ -8,14 +8,18 @@ A full-stack quiz platform that generates multiple-choice questions dynamically 
 - **Web Scraping Fallback**: Attempts to find existing questions via DuckDuckGo first
 - **Flexible Configuration**: Choose topic, difficulty (Easy/Medium/Hard), question count (1-50), and type (Single/Multi/Mixed)
 - **File Upload**: Import questions from text files with standard MCQ format
-- **Interactive UI**: 
+- **Two Quiz Modes**:
+  - **Mock Quiz**: Flexible timing, no pressure, instant feedback on each question
+  - **Exam Quiz**: AWS-style timed exam with strict rules, results only after submission
+- **Interactive UI**:
   - Dark/light mode toggle
   - Real-time progress tracking
   - Question palette for navigation
-  - Visual feedback (correct/incorrect/missed)
+  - Visual feedback (correct/incorrect/missed) — only after submission in Exam mode
   - AI explanation buttons (ChatGPT/Gemini deep-dive)
   - Summary scorecard with statistics
 - **Dual Deployment**: Docker for home servers, AWS Lambda for serverless
+- **Self-Hosted with Tailscale**: Secure access from any device on your Tailnet
 
 ## Quick Start
 
@@ -58,7 +62,7 @@ A full-stack quiz platform that generates multiple-choice questions dynamically 
    
 4. Open http://localhost:3000 in your browser
 
-### Docker Deployment
+### Docker Deployment (Recommended for Home Server)
 
 1. **Configure environment**:
    ```bash
@@ -73,14 +77,124 @@ A full-stack quiz platform that generates multiple-choice questions dynamically 
 
 2. **Build and run**:
    ```bash
-   docker-compose up --build
+   docker compose up --build -d
    ```
    
 3. Open http://localhost in your browser
 
-**Resource Usage**: The Docker setup is optimized for low-spec home servers (~150MB RAM total).
+**Resource Usage**: The Docker setup is optimized for low-spec home servers (~250MB RAM total).
 
-### AWS Lambda Deployment
+### Build Steps (Production)
+
+```bash
+# Frontend build
+cd frontend
+npm run build
+# Output in frontend/dist/
+
+# Backend Docker build
+cd ../backend
+docker build -t quiz-api .
+
+# Full stack build
+cd ..
+docker compose build
+```
+
+### Run Steps (Production)
+
+```bash
+# Start all services in background
+docker compose up -d
+
+# View logs
+docker compose logs -f
+
+# Stop services
+docker compose down
+
+# Restart specific service
+docker compose restart quiz-api
+```
+
+---
+
+## Exposing to Public via Tailscale (Home Server)
+
+Since the home server runs on Tailscale, you can securely expose the app to all devices on your Tailnet without opening ports to the internet.
+
+### Option 1: Tailscale Funnel (Easiest - HTTPS automatically)
+
+```bash
+# Start the app
+docker compose up -d
+
+# Expose port 80 (HTTP) or 443 (HTTPS) via Tailscale Funnel
+# For HTTPS (recommended):
+tailscale funnel 443
+
+# For HTTP:
+tailscale funnel 80
+```
+
+Your app will be available at: `https://<your-device>.<your-tailnet>.ts.net`
+
+### Option 2: Tailscale Serve (Local network only)
+
+```bash
+# Serve on Tailscale IP (accessible only from devices on your Tailnet)
+tailscale serve --https=443 --bg
+# or HTTP
+tailscale serve 80
+```
+
+Access at: `http://<tailscale-ip>` or `https://<tailscale-ip>`
+
+### Option 3: Tailscale SSH + Cloudflare Tunnel (Public internet)
+
+For public internet access without exposing your home IP:
+
+```bash
+# 1. Create Cloudflare Tunnel
+cloudflared tunnel create quiz-platform
+
+# 2. Configure tunnel (cloudflared.yml)
+tunnel: <tunnel-id>
+credentials-file: /path/to/credentials.json
+ingress:
+  - hostname: quiz.yourdomain.com
+    service: http://localhost:80
+  - service: http_status:404
+
+# 3. Run tunnel
+cloudflared tunnel run quiz-platform
+```
+
+### Tailscale Funnel + Custom Domain (Best of both)
+
+```bash
+# 1. Add custom domain to Tailscale
+# In Tailscale admin console: DNS → Custom Domains → Add quiz.yourdomain.com
+
+# 2. Run funnel on port 443
+tailscale funnel 443
+
+# 3. Your app is at https://quiz.yourdomain.com (works globally!)
+```
+
+### Verify Tailscale Exposure
+
+```bash
+# Check funnel status
+tailscale funnel status
+
+# Test from another device on tailnet
+curl https://<your-device>.<your-tailnet>.ts.net/api/quiz/health
+```
+
+---
+
+## AWS Lambda Deployment
 
 1. **Install SAM CLI**:
    ```bash
@@ -101,6 +215,35 @@ A full-stack quiz platform that generates multiple-choice questions dynamically 
 
 **Note**: Set API keys via AWS Systems Manager Parameter Store or Lambda environment variables.
 
+---
+
+## Quiz Modes
+
+### Mock Quiz (Practice Mode)
+- **Timing**: Flexible — no timer, take as long as you need
+- **Feedback**: Instant — after selecting an answer in single-select questions, correct/incorrect is shown immediately
+- **Navigation**: Free — jump between questions anytime using palette
+- **Answers**: Revealed immediately after selection (single-select) or on "Check Answer" (multi-select)
+- **Best for**: Learning, concept reinforcement, casual practice
+
+### Exam Quiz (Test Mode)
+- **Timing**: Strict — AWS-style timer rules:
+  - **AWS Certified Cloud Practitioner**: 90 minutes for 65 questions (~1.4 min/q)
+  - **AWS Associate Exams**: 130 minutes for 65 questions (~2 min/q)
+  - **AWS Professional/Specialty**: 170 minutes for 75 questions (~2.3 min/q)
+  - **Custom**: Configure your own time per question
+- **Feedback**: Delayed — no inline feedback during exam, all results shown only after submission
+- **Navigation**: Restricted — can navigate but no answer checking until submit
+- **Answers**: Hidden until final submission; correct answers revealed only in results
+- **Proctoring**: Tab-switch/focus-loss warnings (configurable)
+- **Auto-submit**: Exam submits automatically when timer expires
+- **Best for**: Certification prep, timed practice, exam simulation
+
+### Switching Modes
+Select quiz mode in the configuration panel before generating questions. The mode persists until changed.
+
+---
+
 ## Configuration
 
 ### Environment Variables
@@ -110,10 +253,11 @@ A full-stack quiz platform that generates multiple-choice questions dynamically 
 | `GEMINI_API_KEY` | Yes* | - | Google Gemini API key |
 | `OPENAI_API_KEY` | No | - | OpenAI fallback key |
 | `LLM_PROVIDER` | No | `auto` | Provider: `gemini`, `openai`, or `auto` |
-| `LLM_MODEL` | No | `gemini-1.5-flash` | Model override |
+| `LLM_MODEL` | No | `gemini-3.6-flash` | Model override |
 | `CACHE_TTL_SECONDS` | No | `3600` | Response cache duration |
 | `RATE_LIMIT_PER_MINUTE` | No | `10` | API rate limit |
 | `LOG_LEVEL` | No | `INFO` | Logging verbosity |
+| `CORS_ORIGINS` | No | `*` | Comma-separated allowed origins |
 
 *At least one LLM API key is required.
 
@@ -122,6 +266,8 @@ A full-stack quiz platform that generates multiple-choice questions dynamically 
 - `auto` (default): Try Gemini first, fall back to OpenAI
 - `gemini`: Use Google Gemini only
 - `openai`: Use OpenAI only
+
+---
 
 ## API Reference
 
@@ -160,7 +306,7 @@ Generate a quiz based on parameters.
   ],
   "metadata": {
     "provider": "gemini",
-    "model": "gemini-1.5-flash",
+    "model": "gemini-3.6-flash",
     "source": "llm",
     "cached": false,
     "generated_at": "2024-01-15T10:30:00Z"
@@ -187,6 +333,8 @@ Check API and provider status.
   }
 }
 ```
+
+---
 
 ## File Upload Format
 
@@ -215,6 +363,8 @@ C) Transfer Acceleration
 D) Object Lock
 Answer: A, B, D
 ```
+
+---
 
 ## Project Structure
 
@@ -252,6 +402,8 @@ quiz-platform/
 └── README.md
 ```
 
+---
+
 ## Development
 
 ### Running Tests
@@ -283,6 +435,8 @@ npm run build
 cd backend
 docker build -t quiz-api .
 ```
+
+---
 
 ## Architecture
 
@@ -319,6 +473,40 @@ docker build -t quiz-api .
 └─────────────────────────────────────────────────────────────┘
 ```
 
+---
+
+## Tailscale Network Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Your Tailnet (Private)                    │
+│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐     │
+│  │  Laptop     │    │  Phone      │    │  Tablet     │     │
+│  │  (TS IP)    │    │  (TS IP)    │    │  (TS IP)    │     │
+│  └──────┬──────┘    └──────┬──────┘    └──────┬──────┘     │
+│         │                  │                  │             │
+│         └──────────────────┼──────────────────┘             │
+│                            ▼                                 │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │              Home Server (Docker)                   │   │
+│  │  ┌─────────┐  ┌─────────┐  ┌────────────────────┐  │   │
+│  │  │ Nginx   │──│ Frontend│──│ Backend (FastAPI)  │  │   │
+│  │  │ Proxy   │  │ (Nginx) │  │ Port 8000          │  │   │
+│  │  └─────────┘  └─────────┘  └────────────────────┘  │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                            │                                 │
+│         ┌──────────────────┼──────────────────┐             │
+│         ▼                  ▼                  ▼             │
+│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    │
+│  │ Tailscale   │    │ Tailscale   │    │ Cloudflare  │    │
+│  │ Funnel      │    │ Serve       │    │ Tunnel      │    │
+│  │ (Public)    │    │ (Tailnet)   │    │ (Public)    │    │
+│  └─────────────┘    └─────────────┘    └─────────────┘    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
 ## License
 
 MIT License - feel free to use for personal or commercial projects.
@@ -334,3 +522,4 @@ Contributions welcome! Please read our contributing guidelines and submit pull r
 - DuckDuckGo for web scraping
 - Tailwind CSS for styling
 - Vite for fast frontend builds
+- Tailscale for secure networking

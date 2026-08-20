@@ -66,7 +66,7 @@ class QuizGenerateResponse(BaseModel):
                 ],
                 "metadata": {
                     "provider": "gemini",
-                    "model": "gemini-1.5-flash",
+                    "model": "gemini-3.6-flash",
                     "source": "llm",
                     "cached": False,
                     "generated_at": "2026-08-19T13:00:00Z"
