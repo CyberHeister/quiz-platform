@@ -62,6 +62,12 @@ app.add_middleware(
 # Include routers
 app.include_router(quiz.router)
 
+# Force redeploy trigger
+@app.get("/version", include_in_schema=False)
+async def version():
+    """Version endpoint for deployment verification."""
+    return {"version": "1.0.1", "deployed_at": "2026-08-20"}
+
 
 @app.get("/", include_in_schema=False)
 async def root():
