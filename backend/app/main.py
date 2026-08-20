@@ -11,8 +11,6 @@ from fastapi.middleware.cors import CORSMiddleware
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Import config after logging is set up
-from app.config import get_settings
 from app.routes import quiz
 # from app.utils.logger import setup_logging
 
@@ -23,6 +21,7 @@ from app.routes import quiz
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan handler."""
     try:
+        from app.config import get_settings
         settings = get_settings()
         logger.info(
             f"Starting Quiz Platform API - "
@@ -44,16 +43,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Configure CORS
-try:
-    settings = get_settings()
-    origins = settings.cors_origins.split(",") if settings.cors_origins else ["*"]
-except Exception:
-    origins = ["*"]
-
+# Configure CORS - use default, will be updated in lifespan if needed
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
