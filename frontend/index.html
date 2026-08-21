@@ -50,7 +50,7 @@
         </div>
 
         <!-- Options Row -->
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-4">
           <!-- Difficulty -->
           <div>
             <label for="difficultySelect" class="block text-sm font-medium mb-2">Difficulty</label>
@@ -94,6 +94,36 @@
                 <span class="text-sm">Multi</span>
               </label>
             </div>
+          </div>
+
+          <!-- Quiz Mode -->
+          <div>
+            <label class="block text-sm font-medium mb-2">Mode</label>
+            <div class="flex gap-2">
+              <label class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 cursor-pointer has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50 dark:has-[:checked]:bg-indigo-900/30 transition" title="Flexible timing, instant feedback">
+                <input type="radio" name="quizMode" value="mock" checked class="sr-only">
+                <span class="text-sm">Mock</span>
+              </label>
+              <label class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 cursor-pointer has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50 dark:has-[:checked]:bg-indigo-900/30 transition" title="Timed exam, results after submission">
+                <input type="radio" name="quizMode" value="exam" class="sr-only">
+                <span class="text-sm">Exam</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Exam Timer Presets (shown only in Exam mode) -->
+        <div id="examTimerPresets" class="hidden mb-4">
+          <label class="block text-sm font-medium mb-2">Exam Duration Preset</label>
+          <div class="flex flex-wrap gap-2">
+            <button type="button" data-preset="practitioner" class="preset-btn px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-sm hover:bg-slate-100 dark:hover:bg-slate-800 transition">Cloud Practitioner (90 min)</button>
+            <button type="button" data-preset="associate" class="preset-btn px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-sm hover:bg-slate-100 dark:hover:bg-slate-800 transition">Associate (130 min)</button>
+            <button type="button" data-preset="professional" class="preset-btn px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-sm hover:bg-slate-100 dark:hover:bg-slate-800 transition">Professional (170 min)</button>
+            <button type="button" data-preset="custom" class="preset-btn px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-sm hover:bg-slate-100 dark:hover:bg-slate-800 transition">Custom</button>
+          </div>
+          <div id="customTimerInput" class="hidden mt-3">
+            <label for="customTimerMinutes" class="block text-sm font-medium mb-1">Custom Duration (minutes)</label>
+            <input type="number" id="customTimerMinutes" min="1" max="300" value="60" class="w-full max-w-xs px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none transition">
           </div>
         </div>
 
